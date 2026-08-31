@@ -1,75 +1,51 @@
-# React + TypeScript + Vite
+# SIH 26124 — AI-Powered Mobile Urban Intelligence Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Decision-support GIS dashboard converting public transport fleet telemetry and computer vision detections into persistent, aggregate road health and traffic intelligence.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quickstart
 
-## React Compiler
+```bash
+# 1. Install dependencies
+npm install
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+# 2. Copy environment file
+cp .env.example .env
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+# 3. Start local development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+The application runs at `http://localhost:5173`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Documentation Index
 
-```
+All project documentation follows a single-owner hierarchy:
+
+- **Agent Context:** [`AGENT_CONTEXT.md`](AGENT_CONTEXT.md)
+- **Product Requirements (PRD):** [`docs/PRD.md`](docs/PRD.md)
+- **Technology Stack:** [`docs/TECH_STACK.md`](docs/TECH_STACK.md)
+- **System Architecture:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- **Frontend Architecture:** [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md)
+- **API Contract:** [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md)
+- **AI Perception Contract:** [`docs/AI_CONTRACT.md`](docs/AI_CONTRACT.md)
+- **Database Schema (PostGIS):** [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md)
+- **Module Ownership:** [`docs/MODULE_OWNERSHIP.md`](docs/MODULE_OWNERSHIP.md)
+- **Architectural Decisions (ADRs):** [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- **Current State:** [`docs/AGENT_STATE.md`](docs/AGENT_STATE.md)
+- **Backlog:** [`docs/BACKLOG.md`](docs/BACKLOG.md)
+- **Environment & Setup:** [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)
+- **Security:** [`docs/SECURITY.md`](docs/SECURITY.md)
+- **Testing Strategy:** [`docs/TESTING.md`](docs/TESTING.md)
+
+---
+
+## Available Scripts
+
+- `npm run dev`: Launch Vite development server with HMR.
+- `npm run build`: Typecheck with `tsc -b` and compile production bundle.
+- `npm run lint`: Run ESLint across project files.
+- `npm run preview`: Preview production build locally.
