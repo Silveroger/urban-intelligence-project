@@ -4,6 +4,7 @@ import type { Incident } from '../../types/incidents';
 import { getRoadColor, getRoadStatusLabel } from '../../utils/roadColor';
 import { formatTimestamp, formatConfidence, getEventTypeLabel } from '../../utils/formatters';
 import { ConditionHistory } from '../Analytics/ConditionHistory';
+import { Camera, Image as ImageIcon } from 'lucide-react';
 
 interface InspectorProps {
   selectedRoad: RoadSegment | null;
@@ -35,6 +36,8 @@ export function Inspector({ selectedRoad, selectedEvent, selectedIncident, segme
     : selectedEvent
       ? (selectedEvent.class_name || getEventTypeLabel(selectedEvent.event_type))
       : selectedIncident!.incident_type;
+
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   return (
     <div className="inspector-panel">
@@ -111,6 +114,23 @@ export function Inspector({ selectedRoad, selectedEvent, selectedIncident, segme
               />
               <Field label="Detected At" value={formatTimestamp(selectedEvent.timestamp)} />
             </div>
+
+            {selectedEvent.evidence_uri && (
+              <div className="mt-4 p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Keyframe Evidence Crop</span>
+                </div>
+                <img
+                  src={selectedEvent.evidence_uri.startsWith('http') ? selectedEvent.evidence_uri : `${baseUrl}${selectedEvent.evidence_uri}`}
+                  alt="Defect Evidence"
+                  className="rounded-lg max-h-48 w-full object-cover border border-slate-700 shadow-inner"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -118,7 +138,7 @@ export function Inspector({ selectedRoad, selectedEvent, selectedIncident, segme
         {selectedIncident && (
           <div className="inspector-section">
             <div className="inspector-score-card">
-              <div className="score-label">Incident Score</div>
+              <div className="score-label">Incident Severity Score</div>
               <div className="score-value" style={{ color: '#f43f5e' }}>
                 {Math.round(selectedIncident.incident_score * 100)}
                 <span className="score-max">%</span>
@@ -153,6 +173,23 @@ export function Inspector({ selectedRoad, selectedEvent, selectedIncident, segme
               <p className="plate-caveat">
                 ⚠ Plate text is OCR-derived and may not be fully accurate. Confidence shown above.
               </p>
+            )}
+
+            {selectedIncident.evidence_uri && (
+              <div className="mt-4 p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Incident Crop Evidence</span>
+                </div>
+                <img
+                  src={selectedIncident.evidence_uri.startsWith('http') ? selectedIncident.evidence_uri : `${baseUrl}${selectedIncident.evidence_uri}`}
+                  alt="Incident Evidence"
+                  className="rounded-lg max-h-48 w-full object-cover border border-slate-700 shadow-inner"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
             )}
           </div>
         )}

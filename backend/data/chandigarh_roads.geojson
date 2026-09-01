@@ -1,0 +1,115 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "seg_chandigarh_001",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.7794, 30.7333],
+          [76.7820, 30.7350],
+          [76.7850, 30.7380]
+        ]
+      },
+      "properties": {
+        "segment_id": "seg_chandigarh_001",
+        "name": "Jan Marg (Sector 16 to 17)",
+        "condition_score": 85.5,
+        "confidence": 0.92,
+        "pothole_count": 0,
+        "waterlogging_count": 0,
+        "observation_count": 14,
+        "last_updated": "2026-08-31T14:30:00+05:30"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "seg_chandigarh_002",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.7850, 30.7380],
+          [76.7900, 30.7420],
+          [76.7950, 30.7460]
+        ]
+      },
+      "properties": {
+        "segment_id": "seg_chandigarh_002",
+        "name": "Madhya Marg (Sector 17 to 18)",
+        "condition_score": 58.0,
+        "confidence": 0.88,
+        "pothole_count": 3,
+        "waterlogging_count": 1,
+        "observation_count": 22,
+        "last_updated": "2026-08-31T15:10:00+05:30"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "seg_chandigarh_003",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.7720, 30.7250],
+          [76.7760, 30.7290],
+          [76.7794, 30.7333]
+        ]
+      },
+      "properties": {
+        "segment_id": "seg_chandigarh_003",
+        "name": "Himalaya Marg (Sector 22 to 17)",
+        "condition_score": 92.0,
+        "confidence": 0.95,
+        "pothole_count": 0,
+        "waterlogging_count": 0,
+        "observation_count": 18,
+        "last_updated": "2026-08-31T16:00:00+05:30"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "seg_chandigarh_004",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.7650, 30.7180],
+          [76.7700, 30.7220],
+          [76.7720, 30.7250]
+        ]
+      },
+      "properties": {
+        "segment_id": "seg_chandigarh_004",
+        "name": "Dakshin Marg (Sector 35 Corridor)",
+        "condition_score": 38.5,
+        "confidence": 0.94,
+        "pothole_count": 7,
+        "waterlogging_count": 2,
+        "observation_count": 31,
+        "last_updated": "2026-08-31T16:20:00+05:30"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "seg_chandigarh_005",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.7950, 30.7460],
+          [76.8020, 30.7510],
+          [76.8100, 30.7570]
+        ]
+      },
+      "properties": {
+        "segment_id": "seg_chandigarh_005",
+        "name": "Udyog Path (Industrial Area Phase 1)",
+        "condition_score": 71.0,
+        "confidence": 0.86,
+        "pothole_count": 1,
+        "waterlogging_count": 0,
+        "observation_count": 9,
+        "last_updated": "2026-08-31T16:45:00+05:30"
+      }
+    }
+  ]
+}

@@ -3,19 +3,18 @@
 > **Note:** This document tracks temporary, current development state. Stale entries are pruned upon milestone completion.
 
 ## 1. Current Implementation Baseline
-- **Frontend Dashboard:** P0 MVP complete (Google Maps vector rendering, colored road polylines, Advanced Markers for defect/incident events, bus markers, filter sidebar, KPI cards, segment/event/incident inspector drawers, historical degradation charts).
-- **Heatmap Layer:** Phase 1 deck.gl GPU heatmap overlay implemented and functional via `@deck.gl/google-maps`.
-- **Data Mode:** Standalone mock data mode operational (`VITE_USE_MOCK=true`) in `src/services/api.ts`.
-- **Type Safety & Build:** Strict TypeScript validation enabled; clean ESLint status; zero compiler errors.
+- **Edge AI & Computer Vision Subsystem (`ai/`):** Complete OpenCV + YOLO edge perception engine for road defects (potholes, damaged roads, waterlogging), infrastructure deficiencies (missing dividers, zebra crossings, signboards), traffic density estimation, vulnerable pedestrian crossing detection, vehicle tracking, and license plate OCR with confidence scoring.
+- **Backend & Spatial Ingestion (`backend/`):** Complete FastAPI server with PostGIS-compatible spatial map-matching engine, dynamic condition scoring, real-time WebSocket live feed (`/ws/live`), evidence crop server, and video ingestion triggers.
+- **Frontend Dashboard (`src/`):** Interactive GIS command center with Google Maps vector rendering, Advanced Markers, deck.gl overlays, KPI cards, inspector drawers, and the new Edge AI Video & Hardware Ingestion Hub.
+- **Data Modes:** Fully operational across both Live Backend (`VITE_USE_MOCK=false`) and Standalone Mock mode (`VITE_USE_MOCK=true`).
 
 ---
 
 ## 2. Active Milestones & Focus
-- **Current Milestone:** Backend REST & WebSocket integration with PostGIS ingestion services.
+- **Current Milestone:** Complete SIH 26124 Edge AI + Backend + Dashboard Integration verified.
 - **Active Tasks:**
-  - Synchronize live backend REST schemas with [API_CONTRACT.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/API_CONTRACT.md).
-  - Implement live WebSocket reconnect logic in `src/services/websocket.ts`.
-  - Validate live GPS stream updates for multiple moving fleet buses.
+  - Ready for physical hardware video and GPS field data ingestion.
+  - End-to-end synthetic verification passed with 0 errors.
 
 ---
 

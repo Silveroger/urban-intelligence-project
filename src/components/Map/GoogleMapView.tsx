@@ -11,10 +11,10 @@ import { getEventTypeColor } from '../../utils/formatters';
 import { DeckHeatmapOverlay } from './DeckHeatmapOverlay';
 
 interface GoogleMapViewProps {
-  roadSegments: RoadSegment[];
-  events: Event[];
-  incidents: Incident[];
-  buses: Bus[];
+  roadSegments?: RoadSegment[];
+  events?: Event[];
+  incidents?: Incident[];
+  buses?: Bus[];
   filters: FilterState;
   selectedRoad: RoadSegment | null;
   selectedEvent: Event | null;
@@ -25,10 +25,10 @@ interface GoogleMapViewProps {
 }
 
 export function GoogleMapView({
-  roadSegments,
-  events,
-  incidents,
-  buses,
+  roadSegments = [],
+  events = [],
+  incidents = [],
+  buses = [],
   filters,
   selectedRoad,
   selectedEvent,
@@ -37,6 +37,11 @@ export function GoogleMapView({
   onSelectEvent,
   onSelectIncident,
 }: GoogleMapViewProps) {
+  const safeSegments = Array.isArray(roadSegments) ? roadSegments : [];
+  const safeEvents = Array.isArray(events) ? events : [];
+  const safeIncidents = Array.isArray(incidents) ? incidents : [];
+  const safeBuses = Array.isArray(buses) ? buses : [];
+
   if (!MAP_CONFIG.apiKey) {
     return (
       <div style={{ padding: '24px', color: '#ef4444', textAlign: 'center' }}>
@@ -58,12 +63,13 @@ export function GoogleMapView({
         >
           {/* Road Segment Polylines */}
           {filters.layers.roads &&
-            roadSegments.map((segment) => {
+            safeSegments.map((segment) => {
               const isSelected = selectedRoad?.segment_id === segment.segment_id;
+              const coords = Array.isArray(segment.geometry) ? segment.geometry : [];
               return (
                 <Polyline
                   key={segment.segment_id}
-                  path={geoJsonToGooglePath(segment.geometry)}
+                  path={geoJsonToGooglePath(coords)}
                   strokeColor={isSelected ? '#38bdf8' : getRoadColor(segment.condition_score)}
                   strokeOpacity={0.9}
                   strokeWeight={isSelected ? 8 : 6}
@@ -75,7 +81,7 @@ export function GoogleMapView({
 
           {/* Event Markers */}
           {filters.layers.events &&
-            events.map((event) => {
+            safeEvents.map((event) => {
               const isSelected = selectedEvent?.event_id === event.event_id;
               const color = getEventTypeColor(event.event_type);
               return (
@@ -97,7 +103,7 @@ export function GoogleMapView({
 
           {/* Incident Markers */}
           {filters.layers.incidents &&
-            incidents.map((inc) => {
+            safeIncidents.map((inc) => {
               const isSelected = selectedIncident?.incident_id === inc.incident_id;
               return (
                 <AdvancedMarker
@@ -118,7 +124,7 @@ export function GoogleMapView({
 
           {/* Bus Markers */}
           {filters.layers.buses &&
-            buses.map((bus) => (
+            safeBuses.map((bus) => (
               <AdvancedMarker
                 key={bus.bus_id}
                 position={{ lat: bus.latitude, lng: bus.longitude }}
@@ -136,7 +142,7 @@ export function GoogleMapView({
             ))}
 
           {/* deck.gl Heatmap Overlay */}
-          <DeckHeatmapOverlay events={events} visible={filters.layers.heatmap} />
+          <DeckHeatmapOverlay events={safeEvents} visible={filters.layers.heatmap} />
         </Map>
       </div>
     </APIProvider>

@@ -20,13 +20,20 @@ dist-ssr/
 !.env.example
 *.local
 
-# Editor and OS files
-.vscode/*
-!.vscode/extensions.json
-.idea/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Python / ML artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.pt
+*.pth
+*.onnx
+
+# Uploads and temporary evidence captures
+backend/static/evidence/*.jpg
+backend/static/evidence/*.png
+backend/static/uploads/*
+!backend/static/uploads/.gitkeep
+!backend/static/evidence/.gitkeep
+

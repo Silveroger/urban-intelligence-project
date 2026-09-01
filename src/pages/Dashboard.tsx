@@ -3,7 +3,10 @@ import { GoogleMapView } from '../components/Map/GoogleMapView';
 import { Inspector } from '../components/Details/Inspector';
 import { FilterPanel } from '../components/Sidebar/FilterPanel';
 import { KpiCards } from '../components/Cards/KpiCards';
+import { VideoProcessingHub } from '../components/VideoHub/VideoProcessingHub';
 import { fetchSegments, fetchEvents, fetchIncidents, fetchBuses, fetchSegmentHistory } from '../services/api';
+import { connectWebSocket, disconnectWebSocket } from '../services/websocket';
+import type { WSMessage } from '../services/websocket';
 import type { SegmentHistory } from '../services/api';
 import type { FilterState } from '../types/filters';
 import { DEFAULT_FILTERS } from '../types/filters';
@@ -11,6 +14,7 @@ import type { RoadSegment } from '../types/roadSegments';
 import type { Event } from '../types/events';
 import type { Incident } from '../types/incidents';
 import type { Bus } from '../types/buses';
+import { Cpu, Video } from 'lucide-react';
 
 export function Dashboard() {
   // ─── Backend data state ───
@@ -26,11 +30,10 @@ export function Dashboard() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [segmentHistory, setSegmentHistory] = useState<SegmentHistory>([]);
 
-  // ─── Filter state ───
+  // ─── Filter & Modal state ───
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-
-  // ─── UI state ───
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [videoHubOpen, setVideoHubOpen] = useState(false);
 
   // Load initial data via API provider
   useEffect(() => {
@@ -51,7 +54,46 @@ export function Dashboard() {
       setLoading(false);
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Connect WebSocket for live telemetry and perception stream
+  useEffect(() => {
+    const handleWsMessage = (msg: WSMessage) => {
+      if (msg.type === 'NEW_EVENT') {
+        const newEvt = msg.payload as Event;
+        setEvents((prev) => [newEvt, ...prev.filter((e) => e.event_id !== newEvt.event_id)]);
+      } else if (msg.type === 'NEW_INCIDENT') {
+        const newInc = msg.payload as Incident;
+        setIncidents((prev) => [newInc, ...prev.filter((i) => i.incident_id !== newInc.incident_id)]);
+      } else if (msg.type === 'BUS_TELEMETRY') {
+        const newBus = msg.payload as Bus;
+        setBuses((prev) => {
+          const idx = prev.findIndex((b) => b.bus_id === newBus.bus_id);
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = newBus;
+            return copy;
+          }
+          return [...prev, newBus];
+        });
+      } else if (msg.type === 'SEGMENT_UPDATE') {
+        const updated = msg.payload;
+        setSegments((prev) => {
+          if (!Array.isArray(prev)) return [];
+          const sid = updated.properties?.segment_id || updated.id || updated.segment_id;
+          const newProps = updated.properties || updated;
+          return prev.map((s) => (s.segment_id === sid ? { ...s, ...newProps } : s));
+        });
+      }
+    };
+
+    connectWebSocket(handleWsMessage);
+    return () => {
+      disconnectWebSocket();
+    };
   }, []);
 
   // Load segment history when a road is selected
@@ -61,7 +103,9 @@ export function Dashboard() {
     fetchSegmentHistory(selectedRoad.segment_id).then((h) => {
       if (!cancelled) setSegmentHistory(h);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedRoad]);
 
   // Derived: filtered events
@@ -111,8 +155,20 @@ export function Dashboard() {
           <span className="brand-badge">P0 Dashboard</span>
         </div>
         <div className="header-meta">
-          <span className="meta-item">Region: <strong>Chandigarh</strong></span>
-          <span className="meta-item">Data: <strong>{import.meta.env.VITE_USE_MOCK === 'true' ? 'Mock' : 'Live'}</strong></span>
+          <button
+            type="button"
+            onClick={() => setVideoHubOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition"
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>Edge AI Video Hub</span>
+          </button>
+          <span className="meta-item">
+            Region: <strong>Chandigarh</strong>
+          </span>
+          <span className="meta-item">
+            Data: <strong>{import.meta.env.VITE_USE_MOCK === 'true' ? 'Mock' : 'Live'}</strong>
+          </span>
           <button
             type="button"
             className="sidebar-toggle-btn"
@@ -125,12 +181,7 @@ export function Dashboard() {
       </header>
 
       <div className="kpi-row">
-        <KpiCards
-          segments={segments}
-          events={filteredEvents}
-          incidents={incidents}
-          buses={buses}
-        />
+        <KpiCards segments={segments} events={filteredEvents} incidents={incidents} buses={buses} />
       </div>
 
       <main className="app-main">
@@ -170,6 +221,15 @@ export function Dashboard() {
           />
         </aside>
       </main>
+
+      {/* Edge Video Ingestion Modal */}
+      <VideoProcessingHub
+        isOpen={videoHubOpen}
+        onClose={() => setVideoHubOpen(false)}
+        filters={filters}
+        onNewEvent={(evt) => setEvents((prev) => [evt, ...prev])}
+        onNewIncident={(inc) => setIncidents((prev) => [inc, ...prev])}
+      />
     </div>
   );
 }
