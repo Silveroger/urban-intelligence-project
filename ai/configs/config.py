@@ -9,8 +9,8 @@ from typing import Dict, List
 
 @dataclass
 class ModelConfig:
-    # Model weights path (falls back to lightweight YOLO or heuristic CV if weights not found)
-    weights_path: str = "models/yolov8s.pt"
+    # Model weights path (switched to YOLO nano: yolo26n.pt / yolov8n.pt for ultra-fast edge inference)
+    weights_path: str = "yolo26n.pt"
     device: str = "cpu"  # "cuda" if GPU is available else "cpu"
     inference_imgsz: int = 640
     conf_threshold: float = 0.40

@@ -14,6 +14,7 @@
     "@deck.gl/core": "^9.3.11",
     "@deck.gl/google-maps": "^9.3.11",
     "@deck.gl/layers": "^9.3.11",
+    "@supabase/supabase-js": "^2.112.4",
     "@vis.gl/react-google-maps": "^1.9.0",
     "axios": "^1.20.0",
     "clsx": "^2.1.1",

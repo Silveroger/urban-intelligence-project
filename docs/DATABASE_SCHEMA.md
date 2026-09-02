@@ -103,7 +103,34 @@ CREATE INDEX idx_gps_points_geom ON gps_points USING GIST (geom);
 CREATE INDEX idx_gps_points_bus_time ON gps_points(bus_id, recorded_at DESC);
 ```
 
-### 3.5 `incidents`
+### 3.5 `gps_records` (Supabase Telemetry Ingestion Contract)
+Stores real-time GPS telemetry records ingested by the frontend data collection pipeline for downstream backend consumption, spatial map-matching, and analytics.
+
+**Migration File:** `supabase/migrations/20260902_create_gps_records.sql`
+
+```sql
+CREATE TABLE public.gps_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bus_id VARCHAR(64) NOT NULL DEFAULT 'BUS-101',
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    speed DOUBLE PRECISION DEFAULT 0.0,
+    heading DOUBLE PRECISION DEFAULT 0.0,
+    location TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT check_latitude_range CHECK (latitude >= -90.0 AND latitude <= 90.0),
+    CONSTRAINT check_longitude_range CHECK (longitude >= -180.0 AND longitude <= 180.0),
+    CONSTRAINT check_speed_non_negative CHECK (speed >= 0.0)
+);
+
+CREATE INDEX idx_gps_records_timestamp ON public.gps_records (timestamp DESC);
+CREATE INDEX idx_gps_records_bus_id_time ON public.gps_records (bus_id, timestamp DESC);
+CREATE INDEX idx_gps_records_lat_lng ON public.gps_records (latitude, longitude);
+```
+
+### 3.6 `incidents`
 Stores traffic violations, obstructions, and vehicle tracking data.
 ```sql
 CREATE TABLE incidents (
@@ -122,6 +149,6 @@ CREATE INDEX idx_incidents_geom ON incidents USING GIST (geom);
 
 ---
 
-## 4. Ownership & Migration Rules
-- **Backend/Geospatial Owner:** Butar maintains all DDL migrations, PostGIS spatial indexing, and aggregation views.
-- **Frontend Boundary:** The dashboard never connects directly to PostgreSQL/PostGIS. All interactions occur strictly through REST API endpoints and WebSocket messages.
+## 4. Ownership & Ingestion Architecture
+- **Frontend Responsibility:** Collects, validates (-90..90 lat, -180..180 lng, speed >= 0), deduplicates, and directly transmits GPS telemetry records into the Supabase `public.gps_records` table. Frontend does **NOT** render maps or perform geospatial projections.
+- **Backend & GIS Responsibility:** Backend processes stored rows from `public.gps_records`, projects them to road segment centerlines using PostGIS, aggregates multi-pass condition metrics, generates zones, and renders map visualizations.

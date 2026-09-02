@@ -56,13 +56,19 @@ class EdgeAIPipeline:
 
     def _load_yolo(self, weights_path: Optional[str]):
         """
-        Attempts to load YOLO weights if ultralytics is installed and file exists.
+        Attempts to load YOLO weights if ultralytics is installed.
+        Prioritizes YOLO nano models (yolo26n.pt / yolov8n.pt) for high-performance edge detection.
         """
         try:
             from ultralytics import YOLO
             if weights_path and Path(weights_path).exists():
                 return YOLO(weights_path)
-            # Try lightweight pretrained yolov8n/s if available
+            # Check configured ModelConfig weights or candidate nano files
+            default_weights = getattr(ModelConfig, "weights_path", "yolo26n.pt")
+            for candidate in [default_weights, "yolo26n.pt", "yolov8n.pt", "models/yolo26n.pt", "models/yolov8n.pt"]:
+                if candidate and Path(candidate).exists():
+                    return YOLO(candidate)
+            # Fallback to YOLO nano pretrained model
             return YOLO("yolov8n.pt")
         except Exception:
             return None

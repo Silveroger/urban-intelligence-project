@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { GoogleMapView } from '../components/Map/GoogleMapView';
+import { GpsConsole } from '../components/GpsPipeline/GpsConsole';
 import { Inspector } from '../components/Details/Inspector';
 import { FilterPanel } from '../components/Sidebar/FilterPanel';
 import { KpiCards } from '../components/Cards/KpiCards';
@@ -14,7 +14,9 @@ import type { RoadSegment } from '../types/roadSegments';
 import type { Event } from '../types/events';
 import type { Incident } from '../types/incidents';
 import type { Bus } from '../types/buses';
-import { Cpu, Video } from 'lucide-react';
+import type { GpsRecord } from '../types/gps';
+import { Video, Radio } from 'lucide-react';
+import { isSupabaseConfigured } from '../services/supabase';
 
 export function Dashboard() {
   // ─── Backend data state ───
@@ -28,11 +30,12 @@ export function Dashboard() {
   const [selectedRoad, setSelectedRoad] = useState<RoadSegment | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [selectedGpsRecord, setSelectedGpsRecord] = useState<GpsRecord | null>(null);
   const [segmentHistory, setSegmentHistory] = useState<SegmentHistory>([]);
 
   // ─── Filter & Modal state ───
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [videoHubOpen, setVideoHubOpen] = useState(false);
 
   // Load initial data via API provider
@@ -59,7 +62,7 @@ export function Dashboard() {
     };
   }, []);
 
-  // Connect WebSocket for live telemetry and perception stream
+  // Connect WebSocket for live telemetry stream
   useEffect(() => {
     const handleWsMessage = (msg: WSMessage) => {
       if (msg.type === 'NEW_EVENT') {
@@ -118,31 +121,19 @@ export function Dashboard() {
     });
   }, [events, filters]);
 
-  // Selection handlers — clear other selections
-  const handleSelectRoad = useCallback((road: RoadSegment) => {
-    setSelectedRoad(road);
-    setSelectedEvent(null);
-    setSelectedIncident(null);
-  }, []);
-
-  const handleSelectEvent = useCallback((event: Event) => {
-    setSelectedEvent(event);
-    setSelectedRoad(null);
-    setSelectedIncident(null);
-    setSegmentHistory([]);
-  }, []);
-
-  const handleSelectIncident = useCallback((incident: Incident) => {
-    setSelectedIncident(incident);
+  // Selection handlers
+  const handleSelectGpsRecord = useCallback((record: GpsRecord | null) => {
+    setSelectedGpsRecord(record);
     setSelectedRoad(null);
     setSelectedEvent(null);
-    setSegmentHistory([]);
+    setSelectedIncident(null);
   }, []);
 
   const handleCloseInspector = useCallback(() => {
     setSelectedRoad(null);
     setSelectedEvent(null);
     setSelectedIncident(null);
+    setSelectedGpsRecord(null);
     setSegmentHistory([]);
   }, []);
 
@@ -151,8 +142,11 @@ export function Dashboard() {
       <header className="app-header">
         <div className="header-brand">
           <span className="brand-dot"></span>
-          <h1 className="brand-title">SIH 26124 — Urban Intelligence GIS</h1>
-          <span className="brand-badge">P0 Dashboard</span>
+          <h1 className="brand-title">SIH 26124 — GPS Collection & Supabase Telemetry Pipeline</h1>
+          <span className="brand-badge">
+            <Radio className="w-3 h-3 inline mr-1" />
+            Ingestion Node
+          </span>
         </div>
         <div className="header-meta">
           <button
@@ -161,19 +155,20 @@ export function Dashboard() {
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition"
           >
             <Video className="w-3.5 h-3.5" />
-            <span>Edge AI Video Hub</span>
+            <span>Edge Video & GPS Hub</span>
           </button>
           <span className="meta-item">
             Region: <strong>Chandigarh</strong>
           </span>
           <span className="meta-item">
-            Data: <strong>{import.meta.env.VITE_USE_MOCK === 'true' ? 'Mock' : 'Live'}</strong>
+            Supabase: <strong>{isSupabaseConfigured ? 'Connected' : 'Simulated'}</strong>
           </span>
           <button
             type="button"
             className="sidebar-toggle-btn"
             onClick={() => setSidebarOpen((v) => !v)}
             aria-label="Toggle filters"
+            title="Toggle Filters Sidebar"
           >
             ☰
           </button>
@@ -191,22 +186,14 @@ export function Dashboard() {
           </aside>
         )}
 
-        <div className="map-wrapper">
+        {/* ── Main GPS Telemetry & Ingestion Console (Zero Map Rendering) ── */}
+        <div className="gps-main-workspace">
           {loading ? (
-            <div className="loading-overlay">Loading data…</div>
+            <div className="loading-overlay">Initializing GPS Telemetry Engine…</div>
           ) : (
-            <GoogleMapView
-              roadSegments={segments}
-              events={filteredEvents}
-              incidents={incidents}
-              buses={buses}
-              filters={filters}
-              selectedRoad={selectedRoad}
-              selectedEvent={selectedEvent}
-              selectedIncident={selectedIncident}
-              onSelectRoad={handleSelectRoad}
-              onSelectEvent={handleSelectEvent}
-              onSelectIncident={handleSelectIncident}
+            <GpsConsole
+              onSelectRecord={handleSelectGpsRecord}
+              selectedRecord={selectedGpsRecord}
             />
           )}
         </div>
@@ -216,13 +203,14 @@ export function Dashboard() {
             selectedRoad={selectedRoad}
             selectedEvent={selectedEvent}
             selectedIncident={selectedIncident}
+            selectedGpsRecord={selectedGpsRecord}
             segmentHistory={segmentHistory}
             onClose={handleCloseInspector}
           />
         </aside>
       </main>
 
-      {/* Edge Video Ingestion Modal */}
+      {/* Edge Video & GPS Ingestion Modal */}
       <VideoProcessingHub
         isOpen={videoHubOpen}
         onClose={() => setVideoHubOpen(false)}

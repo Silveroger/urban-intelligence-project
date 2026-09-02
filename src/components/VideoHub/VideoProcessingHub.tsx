@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { Play, CheckCircle2, AlertTriangle, Cpu, RefreshCw, X, Eye, MonitorPlay, Target, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Play, CheckCircle2, AlertTriangle, Cpu, RefreshCw, X, Eye, MonitorPlay, Target, ShieldCheck } from 'lucide-react';
 import type { Event } from '../../types/events';
 import type { Incident } from '../../types/incidents';
 import type { FilterState } from '../../types/filters';
