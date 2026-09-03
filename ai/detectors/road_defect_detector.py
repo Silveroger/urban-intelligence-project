@@ -30,28 +30,49 @@ class RoadDefectDetector:
         except ImportError:
             return detections
 
-        # 1. YOLO Inference if model available
+        # 1. YOLO Neural Network Inference (Primary & Accurate on Road Surface)
         if self.model is not None:
             try:
+                from ai.configs.config import EdgeConfig
+                cfg = EdgeConfig()
+                kaggle_map = cfg.kaggle_defect_map
+
                 results = self.model(frame, conf=self.conf_thresh, verbose=False)
                 for r in results:
                     for box in r.boxes:
                         cls_id = int(box.cls[0].item())
-                        cls_name = r.names.get(cls_id, "").lower()
+                        cls_name = r.names.get(cls_id, str(cls_id)).lower().strip()
                         conf = float(box.conf[0].item())
                         xyxy = [int(v) for v in box.xyxy[0].tolist()]
 
-                        if any(k in cls_name for k in ["pothole", "crack", "water", "defect", "hole"]):
-                            target_class = "pothole"
-                            if "water" in cls_name:
+                        # Map Kaggle class names / RDD tags (e.g. D00, D10, D20, D40, pothole, crack, manhole)
+                        target_class = kaggle_map.get(cls_name)
+                        if not target_class:
+                            if any(k in cls_name for k in ["pothole", "hole", "d40", "cavity"]):
+                                target_class = "pothole"
+                            elif any(k in cls_name for k in ["water", "puddle", "flood", "drain"]):
                                 target_class = "waterlogging"
-                            elif "crack" in cls_name:
+                            elif any(k in cls_name for k in ["crack", "damaged", "d00", "d10", "d20", "rutting", "patch", "bump", "manhole"]):
                                 target_class = "damaged_road"
+                            elif any(k in cls_name for k in ["divider", "median"]):
+                                target_class = "missing_road_divider"
+                            elif any(k in cls_name for k in ["zebra", "crossing"]):
+                                target_class = "missing_zebra_crossing"
+                            elif any(k in cls_name for k in ["sign", "board"]):
+                                target_class = "damaged_traffic_sign"
 
+                        if target_class:
                             box_w = xyxy[2] - xyxy[0]
                             box_h = xyxy[3] - xyxy[1]
-                            ratio = (box_w * box_h) / (w * h)
-                            severity = min(4, max(1, int(ratio * 50) + 1))
+                            ratio = (box_w * box_h) / max(1, (w * h))
+                            
+                            # Filter out absurd bounding boxes (e.g. entire screen or tiny single pixel noise)
+                            if ratio > 0.65 or box_w < 8 or box_h < 8:
+                                continue
+
+                            # Calculate severity based on defect size & class
+                            base_sev = cfg.severity_map.get(target_class, 2)
+                            severity = min(4, max(1, base_sev if ratio < 0.02 else base_sev + 1))
 
                             detections.append({
                                 "class_name": target_class,
@@ -62,7 +83,11 @@ class RoadDefectDetector:
             except Exception:
                 pass
 
-        # 2. OpenCV Real Road Surface Morphological Defect Analysis
+            # When a trained YOLO model is active, strictly return YOLO detections to avoid false positives
+            return detections
+            return detections
+
+        # 2. OpenCV Fallback Analyzer (ONLY used when no YOLO model is loaded)
         # Road Region of Interest: Bottom 55% of the frame
         roi_y1 = int(h * 0.45)
         roi = frame[roi_y1:h, :]
@@ -72,7 +97,6 @@ class RoadDefectDetector:
         blurred = cv2.GaussianBlur(gray, (7, 7), 0)
 
         # A. Detect Potholes (Dark depressions surrounded by lighter pavement)
-        # Using adaptive thresholding to isolate localized dark asphalt depressions
         dark_thresh = cv2.adaptiveThreshold(
             blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 12
         )
@@ -82,11 +106,9 @@ class RoadDefectDetector:
         contours, _ = cv2.findContours(dark_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            # Filter realistic pothole size (350 px to 25% of ROI)
             if 350 < area < (roi_h * roi_w * 0.20):
                 x, y, bw, bh = cv2.boundingRect(cnt)
                 aspect = bw / max(1, bh)
-                # Potholes have rounded / oval aspect ratios
                 if 0.45 < aspect < 2.8:
                     global_bbox = [x, y + roi_y1, x + bw, y + bh + roi_y1]
                     area_ratio = area / (w * h)

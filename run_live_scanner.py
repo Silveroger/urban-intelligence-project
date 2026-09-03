@@ -4,6 +4,7 @@ Launches the real-time AI perception engine in a dedicated interactive window
 on your laptop screen with bounding boxes, HUD telemetry, and live detections.
 """
 
+import argparse
 import sys
 from pathlib import Path
 from ai.pipeline import EdgeAIPipeline
@@ -11,31 +12,42 @@ from ai.test_video_generator import generate_synthetic_bus_run
 
 
 def main():
+    parser = argparse.ArgumentParser(description="SIH 26124 — Edge AI Live Perception Scanner")
+    parser.add_argument("video", nargs="?", default=None, help="Path to video file, camera index (0, 1), or RTSP stream URL")
+    parser.add_argument("gps", nargs="?", default=None, help="Path to synchronized GPS track (.json or .csv)")
+    parser.add_argument("--cam", dest="cam", default=None, help="Hardware SBC camera index (0, 1) or stream URL (rtsp://...)")
+    parser.add_argument("--weights", dest="weights", default=None, help="Custom YOLO weights (.pt or .onnx) file path")
+    parser.add_argument("--bus-id", dest="bus_id", default="BUS-101", help="Bus / sensing vehicle identifier")
+    parser.add_argument("--no-window", dest="no_window", action="store_true", help="Run headless without popup window")
+    args = parser.parse_args()
+
     print("=" * 65)
-    print(" SIH 26124 — Edge AI Live Perception Scanner")
+    print(" SIH 26124 — Edge AI Live Perception Scanner (Hardware & Edge)")
     print("=" * 65)
 
-    video_path = sys.argv[1] if len(sys.argv) > 1 else "ai/sample_bus_camera.mp4"
-    gps_path = sys.argv[2] if len(sys.argv) > 2 else "ai/sample_gps_track.json"
+    video_input = args.cam or args.video or "ai/sample_bus_camera.mp4"
+    gps_path = args.gps or "ai/sample_gps_track.json"
 
-    # If default sample video doesn't exist, create it
-    if not Path(video_path).exists():
-        print("[*] Generating sample bus dashcam video and GPS track...")
-        generate_synthetic_bus_run(video_path, gps_path)
+    # If default sample video doesn't exist and not using hardware camera, create it
+    if not (str(video_input).isdigit() or str(video_input).startswith("rtsp://") or str(video_input).startswith("http://")):
+        if not Path(video_input).exists():
+            print("[*] Generating sample bus dashcam video and GPS track...")
+            generate_synthetic_bus_run(video_input, gps_path)
 
-    print(f"[*] Loading Edge AI Pipeline (OpenCV + YOLO)...")
-    print(f"[*] Processing Video: '{video_path}'")
-    print(f"[*] GPS Track: '{gps_path}'")
+    print(f"[*] Loading Edge AI Pipeline (YOLO 26n / OpenCV Engine)...")
+    print(f"[*] Video Source / Camera Feed: '{video_input}'")
+    print(f"[*] GPS Track Source: '{gps_path}'")
+    if args.weights:
+        print(f"[*] Custom Weights: '{args.weights}'")
     print(f"[*] Opening Live Scanning Window on screen...")
     print(f"[*] Tip: Press 'q' or 'ESC' on the video window to stop anytime.\n")
 
-    pipeline = EdgeAIPipeline(bus_id="BUS-101")
-    # show_window=True opens a dedicated OpenCV window on your screen
+    pipeline = EdgeAIPipeline(bus_id=args.bus_id, weights_path=args.weights)
     summary = pipeline.process_video(
-        video_path=video_path,
-        gps_path=gps_path,
-        show_window=True,
-        delay_ms=30  # Adjust playback speed (30ms ~ 33 FPS)
+        video_path=video_input,
+        gps_path=gps_path if Path(str(gps_path)).exists() else None,
+        show_window=not args.no_window,
+        delay_ms=30
     )
 
     print("\n" + "=" * 65)

@@ -36,7 +36,17 @@ class TrafficDensityDetector:
                 "detections": []
             }
 
-        # 1. YOLO Inference
+        from ai.configs.config import EdgeConfig
+        if not getattr(EdgeConfig, 'enable_traffic_detector', False):
+            return {
+                "vehicle_count": 0,
+                "density_score": 0.0,
+                "is_bottleneck": False,
+                "breakdown": breakdown,
+                "detections": []
+            }
+
+        # 1. YOLO Inference (only if traffic detection is enabled and model contains vehicle classes)
         if self.model is not None:
             try:
                 results = self.model(frame, conf=self.conf_thresh, verbose=False)
@@ -68,31 +78,6 @@ class TrafficDensityDetector:
                             })
             except Exception:
                 pass
-
-        # 2. OpenCV Vehicle Silhouette Segmentation Fallback if no YOLO detections
-        if not detections:
-            roi_y1 = int(h * 0.35)
-            roi = frame[roi_y1:int(h * 0.95), int(w * 0.05):int(w * 0.95)]
-            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            edges = cv2.Canny(blurred, 50, 150)
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 9))
-            closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-
-            contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area > 1800:
-                    x, y, bw, bh = cv2.boundingRect(cnt)
-                    aspect = bw / max(1, bh)
-                    if 0.8 < aspect < 3.2:
-                        v_type = "bus" if (bw * bh > 12000) else "car"
-                        breakdown[v_type] = breakdown.get(v_type, 0) + 1
-                        detections.append({
-                            "class_name": v_type,
-                            "confidence": 0.82,
-                            "bbox": [x + int(w * 0.05), y + roi_y1, x + bw + int(w * 0.05), y + bh + roi_y1]
-                        })
 
         total_vehicles = len(detections)
         density_score = min(1.0, round(total_vehicles / 8.0, 2))

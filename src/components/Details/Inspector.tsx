@@ -1,17 +1,15 @@
 import type { RoadSegment } from '../../types/roadSegments';
 import type { Event } from '../../types/events';
 import type { Incident } from '../../types/incidents';
-import type { GpsRecord } from '../../types/gps';
 import { getRoadColor, getRoadStatusLabel } from '../../utils/roadColor';
 import { formatTimestamp, formatConfidence, getEventTypeLabel } from '../../utils/formatters';
 import { ConditionHistory } from '../Analytics/ConditionHistory';
-import { Camera, Image as ImageIcon, Database, CheckCircle, Code } from 'lucide-react';
+import { Camera, Image as ImageIcon } from 'lucide-react';
 
 interface InspectorProps {
   selectedRoad: RoadSegment | null;
   selectedEvent: Event | null;
   selectedIncident: Incident | null;
-  selectedGpsRecord?: GpsRecord | null;
   segmentHistory: { date: string; score: number }[];
   onClose: () => void;
 }
@@ -20,34 +18,26 @@ export function Inspector({
   selectedRoad,
   selectedEvent,
   selectedIncident,
-  selectedGpsRecord,
   segmentHistory,
   onClose,
 }: InspectorProps) {
-  if (!selectedRoad && !selectedEvent && !selectedIncident && !selectedGpsRecord) {
+  if (!selectedRoad && !selectedEvent && !selectedIncident) {
     return (
       <div className="inspector-panel empty">
-        <div className="flex flex-col items-center gap-2">
-          <Database className="w-8 h-8 text-slate-600 mb-1" />
-          <p className="inspector-placeholder">
-            Select any GPS record or telemetry stream row to inspect its Supabase schema fields, coordinate precision, and JSON payload.
-          </p>
-        </div>
+        <p className="inspector-placeholder">
+          Click a road segment, event marker, or incident on the map to inspect details.
+        </p>
       </div>
     );
   }
 
-  const typeLabel = selectedGpsRecord
-    ? 'GPS Telemetry Record'
-    : selectedRoad
+  const typeLabel = selectedRoad
     ? 'Road Segment'
     : selectedEvent
     ? 'Event'
     : 'Incident';
 
-  const title = selectedGpsRecord
-    ? `${selectedGpsRecord.bus_id} @ ${selectedGpsRecord.location || 'GPS Waypoint'}`
-    : selectedRoad
+  const title = selectedRoad
     ? (selectedRoad.name || selectedRoad.segment_id)
     : selectedEvent
     ? (selectedEvent.class_name || getEventTypeLabel(selectedEvent.event_type))
@@ -73,78 +63,8 @@ export function Inspector({
       </div>
 
       <div className="inspector-body">
-        {/* ─── GPS Telemetry Record (Primary) ─── */}
-        {selectedGpsRecord && (
-          <div className="inspector-section">
-            <div className="inspector-score-card" style={{ borderColor: '#38bdf8' }}>
-              <div className="score-label" style={{ color: '#38bdf8' }}>GPS Vehicle Telemetry</div>
-              <div className="score-value text-sky-400" style={{ fontSize: '28px' }}>
-                {selectedGpsRecord.speed.toFixed(1)} <span className="score-max text-slate-400">km/h</span>
-              </div>
-              <div
-                className="score-status-pill"
-                style={{
-                  backgroundColor: 'rgba(56,189,248,0.15)',
-                  borderColor: '#38bdf8',
-                  color: '#38bdf8',
-                }}
-              >
-                {selectedGpsRecord.bus_id}
-              </div>
-            </div>
-
-            <div className="inspector-grid">
-              <Field label="Record ID (UUID)" value={selectedGpsRecord.id || 'Pending Insert'} mono />
-              <Field label="Vehicle / Bus ID" value={selectedGpsRecord.bus_id} mono />
-              <Field label="Latitude (double precision)" value={selectedGpsRecord.latitude.toFixed(6)} mono />
-              <Field label="Longitude (double precision)" value={selectedGpsRecord.longitude.toFixed(6)} mono />
-              <Field label="Speed (double precision)" value={`${selectedGpsRecord.speed.toFixed(1)} km/h`} mono />
-              <Field label="Heading (double precision)" value={`${selectedGpsRecord.heading ?? 0}°`} mono />
-              <Field label="Location / Sector" value={selectedGpsRecord.location || 'Not Specified'} />
-              <Field label="Timestamp (timestamptz)" value={selectedGpsRecord.timestamp} mono />
-            </div>
-
-            {/* Supabase Schema Alignment Card */}
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-700/60">
-              <div className="text-xs font-semibold text-sky-300 mb-2 flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Supabase Table Alignment (`public.gps_records`)</span>
-              </div>
-              <div className="text-[11px] text-slate-300 space-y-1">
-                <div className="flex justify-between border-b border-slate-800 pb-1">
-                  <span className="text-slate-400">latitude / longitude:</span>
-                  <span className="font-mono text-sky-300">double precision</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-1">
-                  <span className="text-slate-400">speed:</span>
-                  <span className="font-mono text-sky-300">double precision</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-1">
-                  <span className="text-slate-400">timestamp:</span>
-                  <span className="font-mono text-sky-300">timestamptz</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">id:</span>
-                  <span className="font-mono text-sky-300">uuid (primary key)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Raw JSON Payload */}
-            <div className="p-3 bg-black/60 rounded-xl border border-slate-800">
-              <div className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-                <Code className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Raw Ingestion JSON Payload</span>
-              </div>
-              <pre className="text-[10px] font-mono text-slate-300 overflow-x-auto p-2 bg-slate-950 rounded border border-slate-800">
-                {JSON.stringify(selectedGpsRecord, null, 2)}
-              </pre>
-            </div>
-          </div>
-        )}
-
         {/* ─── Road Segment ─── */}
-        {selectedRoad && !selectedGpsRecord && (
+        {selectedRoad && (
           <div className="inspector-section">
             <div className="inspector-score-card">
               <div className="score-label">Condition Score</div>
@@ -181,7 +101,7 @@ export function Inspector({
         )}
 
         {/* ─── Event ─── */}
-        {selectedEvent && !selectedGpsRecord && (
+        {selectedEvent && (
           <div className="inspector-section">
             <div className="inspector-grid">
               <Field label="Event ID" value={selectedEvent.event_id} mono />
@@ -221,7 +141,7 @@ export function Inspector({
         )}
 
         {/* ─── Incident ─── */}
-        {selectedIncident && !selectedGpsRecord && (
+        {selectedIncident && (
           <div className="inspector-section">
             <div className="inspector-score-card">
               <div className="score-label">Incident Severity Score</div>

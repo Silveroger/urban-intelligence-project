@@ -14,6 +14,10 @@ class PedestrianDetector:
         self.conf_thresh = conf_thresh
 
     def detect(self, frame: np.ndarray) -> List[Dict]:
+        from ai.configs.config import EdgeConfig
+        if not getattr(EdgeConfig, 'enable_pedestrian_detector', False):
+            return []
+
         h, w = frame.shape[:2]
         detections: List[Dict] = []
 
