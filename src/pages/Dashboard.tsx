@@ -80,11 +80,15 @@ export function Dashboard() {
           return [...prev, newBus];
         });
       } else if (msg.type === 'SEGMENT_UPDATE') {
-        const updated = msg.payload;
+        const updated = msg.payload as {
+          id?: string;
+          segment_id?: string;
+          properties?: Partial<RoadSegment>;
+        };
         setSegments((prev) => {
           if (!Array.isArray(prev)) return [];
-          const sid = updated.properties?.segment_id || updated.id || updated.segment_id;
-          const newProps = updated.properties || updated;
+          const sid = updated?.properties?.segment_id || updated?.id || updated?.segment_id;
+          const newProps = updated?.properties || updated;
           return prev.map((s) => (s.segment_id === sid ? { ...s, ...newProps } : s));
         });
       }

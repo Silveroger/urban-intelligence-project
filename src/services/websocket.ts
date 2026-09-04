@@ -7,11 +7,11 @@
 const WS_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/^http/, 'ws')}/ws/live`;
 
 let socket: WebSocket | null = null;
-let reconnectTimer: any = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-export interface WSMessage {
+export interface WSMessage<T = unknown> {
   type: 'BUS_TELEMETRY' | 'NEW_EVENT' | 'NEW_INCIDENT' | 'SEGMENT_UPDATE';
-  payload: any;
+  payload: T;
 }
 
 export function connectWebSocket(onMessage: (data: WSMessage) => void): void {

@@ -86,7 +86,7 @@
     "confidence": 0.89,
     "severity": 3,
     "frame_id": 4120,
-    "evidence_uri": "https://storage.urban-intel.city/frames/evt_pot_001.jpg"
+    "evidence_uri": "http://localhost:8000/evidence/evt_pot_001.jpg"
   }
 ]
 ```
@@ -106,7 +106,7 @@
     "vehicle_track_id": "trk_901",
     "plate_text": "CH01AB1234",
     "plate_confidence": 0.94,
-    "evidence_uri": "https://storage.urban-intel.city/clips/inc_001.mp4"
+    "evidence_uri": "http://localhost:8000/evidence/inc_001.jpg"
   }
 ]
 ```
@@ -126,11 +126,118 @@
 ]
 ```
 
+### 2.6 City Analytics Summary
+- **Endpoint:** `GET /api/v1/analytics/summary`
+- **Description:** Returns aggregate KPI numbers, condition tier distribution, and active alerts across the entire city.
+- **Response Schema:**
+```json
+{
+  "total_road_segments": 42,
+  "monitored_buses": 8,
+  "critical_defects": 5,
+  "active_incidents": 3,
+  "average_city_health": 81.4,
+  "condition_distribution": {
+    "good": 28,
+    "moderate": 9,
+    "poor": 3,
+    "critical": 2
+  },
+  "last_updated": "2026-09-04T12:00:00+05:30"
+}
+```
+
 ---
 
-## 3. WebSocket Protocol (`/ws/live`)
+## 3. Ingestion & Edge Video Processing Endpoints
 
-### 3.1 Live Bus Telemetry Frame
+### 3.1 Structured Observation Ingestion
+- **Endpoint:** `POST /api/v1/ingest/observation`
+- **Body Schema:** Conforms to `ObservationEvent` model ([AI_CONTRACT.md](AI_CONTRACT.md)).
+- **Response Schema:**
+```json
+{
+  "status": "ok",
+  "event_id": "evt_20260904_101_0042",
+  "matched_segment": "seg_chandigarh_001"
+}
+```
+
+### 3.2 Bus Telemetry Ingestion
+- **Endpoint:** `POST /api/v1/ingest/telemetry`
+- **Body Schema:** Conforms to `BusTelemetry` model.
+- **Response Schema:**
+```json
+{
+  "status": "ok",
+  "bus_id": "BUS-101"
+}
+```
+
+### 3.3 Traffic Incident Ingestion
+- **Endpoint:** `POST /api/v1/ingest/incident`
+- **Body Schema:** Conforms to `Incident` model.
+- **Response Schema:**
+```json
+{
+  "status": "ok",
+  "incident_id": "inc_001"
+}
+```
+
+### 3.4 Video Processing Pipeline Trigger
+- **Endpoint:** `POST /api/v1/ingest/video/process`
+- **Content-Type:** `multipart/form-data`
+- **Form Parameters:**
+  - `bus_id` (string, default: `"BUS-101"`)
+  - `use_sample` (boolean, default: `false`)
+  - `show_window` (boolean, default: `true` — opens desktop OpenCV HUD window)
+  - `enabled_detectors` (JSON string, e.g. `'{"road_defect": true, "waterlogging": true, "traffic": true, "incident": true}'`)
+  - `video_file` (file upload, optional if `use_sample=true`)
+  - `gps_file` (file upload, optional)
+- **Supported Video Containers:** `.mp4`, `.avi`, `.mkv`, `.mov`, `.h264`, `.h265`, `.mjpeg`, `.ts`, `.raw`, `.flv`, `.webm`
+- **Response Schema:**
+```json
+{
+  "status": "processing_started",
+  "bus_id": "BUS-101",
+  "video_path": "backend/static/uploads/dashcam_01.mp4",
+  "gps_path": "backend/static/uploads/gps_01.json",
+  "show_window": true,
+  "enabled_detectors": {
+    "road_defect": true,
+    "waterlogging": true,
+    "traffic": true,
+    "incident": true
+  }
+}
+```
+
+### 3.5 Video Processing Pipeline Status
+- **Endpoint:** `GET /api/v1/ingest/video/status`
+- **Response Schema:**
+```json
+{
+  "is_running": true,
+  "progress": 45.2,
+  "current_frame": 452,
+  "total_frames": 1000,
+  "status_message": "Processing frame 452/1000 (45.2%)",
+  "last_result": null
+}
+```
+
+### 3.6 Static Evidence Files
+- **Endpoint:** `GET /evidence/{filename}`
+- **Description:** Serves cropped keyframe JPEG evidence images and video clip artifacts saved in `backend/static/evidence/`.
+
+---
+
+## 4. WebSocket Protocol (`/ws/live`)
+
+The WebSocket endpoint broadcasts live event streams to connected clients.
+
+### 4.1 Live Bus Telemetry Frame
 ```json
 {
   "type": "BUS_TELEMETRY",
@@ -144,7 +251,7 @@
 }
 ```
 
-### 3.2 Live Event Frame
+### 4.2 Live Event Frame
 ```json
 {
   "type": "NEW_EVENT",
@@ -159,14 +266,59 @@
     "class_name": "pothole",
     "confidence": 0.91,
     "severity": 2,
-    "evidence_uri": "https://storage.urban-intel.city/frames/evt_pot_002.jpg"
+    "evidence_uri": "http://localhost:8000/evidence/evt_pot_002.jpg"
+  }
+}
+```
+
+### 4.3 Live Incident Frame
+```json
+{
+  "type": "NEW_INCIDENT",
+  "payload": {
+    "incident_id": "inc_002",
+    "bus_id": "BUS-101",
+    "timestamp": "2026-08-31T16:15:15+05:30",
+    "latitude": 30.7355,
+    "longitude": 76.7810,
+    "incident_type": "rash_driving",
+    "severity": 4,
+    "vehicle_track_id": "trk_402",
+    "plate_text": "PB65AB1234",
+    "plate_confidence": 0.92,
+    "evidence_uri": "http://localhost:8000/evidence/inc_002.jpg"
+  }
+}
+```
+
+### 4.4 Segment Condition Update Frame
+```json
+{
+  "type": "SEGMENT_UPDATE",
+  "payload": {
+    "type": "Feature",
+    "id": "seg_chandigarh_001",
+    "geometry": {
+      "type": "LineString",
+      "coordinates": [[76.7794, 30.7333], [76.7820, 30.7350]]
+    },
+    "properties": {
+      "segment_id": "seg_chandigarh_001",
+      "name": "Jan Marg (Sector 16 to 17)",
+      "condition_score": 83.2,
+      "confidence": 0.94,
+      "pothole_count": 1,
+      "waterlogging_count": 0,
+      "observation_count": 15,
+      "last_updated": "2026-08-31T16:15:10+05:30"
+    }
   }
 }
 ```
 
 ---
 
-## 4. Error Response Schema
+## 5. Error Response Schema
 ```json
 {
   "error": {

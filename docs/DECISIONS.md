@@ -53,3 +53,27 @@
 - **Context:** Prototype fleet hardware may provide intermittent or uncalibrated vehicle speed readings.
 - **Decision:** Vehicle speed is treated as an optional field in telemetry models. Core map rendering, road scoring, and event markers must function completely without requiring speed values.
 - **Consequence:** Simplifies hardware integration and prevents prototype failures caused by missing speed telemetry.
+
+---
+
+## ADR-008 — Supabase Cloud & Realtime Ingestion Integration
+- **Status:** Accepted
+- **Context:** Distributed fleet deployment requires scalable cloud telemetry ingestion with built-in Row Level Security (RLS) and instant multi-client push notifications without requiring complex self-hosted infrastructure during prototype testing.
+- **Decision:** Introduce Supabase (PostgreSQL 15+ with PostGIS and Realtime) as the managed cloud persistence layer alongside local PostGIS. Frontend components subscribe directly to `supabase_realtime` channels for GPS traces and observations.
+- **Consequence:** Accelerates end-to-end integration and simplifies fleet sensor data ingestion from remote hardware.
+
+---
+
+## ADR-009 — Background Video & Edge AI Pipeline Execution in FastAPI
+- **Status:** Accepted
+- **Context:** Video ingestion and high-resolution perception runs are computationally intensive and would block HTTP request loops if executed synchronously.
+- **Decision:** Execute perception inference tasks asynchronously using FastAPI `BackgroundTasks`, emitting frame-by-frame progress through `/api/v1/ingest/video/status` and streaming live event detections over WebSocket `/ws/live`.
+- **Consequence:** Non-blocking video processing with live visual feedback and telemetry synchronization.
+
+---
+
+## ADR-010 — Dynamic Modular Detector Toggles
+- **Status:** Accepted
+- **Context:** Edge hardware devices (Raspberry Pi 5, NVIDIA Jetson) have constrained compute and thermal envelopes, and operators may only need specific detector subsets for a given patrol run.
+- **Decision:** Implement selective detector flags (`road_defect`, `waterlogging`, `traffic`, `incident`, `infrastructure`, `pedestrian`) configurable via API form parameters and UI checkboxes.
+- **Consequence:** Bypasses unselected detector inference passes, reducing per-frame processing latency and resource utilization by up to 60%.

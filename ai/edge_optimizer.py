@@ -42,18 +42,16 @@ class EdgeOptimizer:
         """
         Generates a validated observation payload according to docs/AI_CONTRACT.md.
         """
-        # Confidence hygiene rule: Ignore observations below 0.45
-        if confidence < 0.45:
+        # Confidence hygiene rule: Accept any valid model detection with confidence >= 0.25
+        if confidence < 0.25:
             return None
 
-        # Deduplication check: Avoid re-emitting identical class at same GPS coordinate within 3 seconds
+        # Deduplication check: Avoid re-emitting identical class within 5 frames at identical pixel location
         curr_lat = telemetry["latitude"]
         curr_lng = telemetry["longitude"]
-        for prev in self.recent_events[-15:]:
-            if prev["class_name"] == class_name:
-                dist = abs(prev["lat"] - curr_lat) + abs(prev["lng"] - curr_lng)
-                if dist < 0.0001:  # ~10 meters proximity
-                    return None
+        for prev in self.recent_events[-5:]:
+            if prev["class_name"] == class_name and abs(prev.get("frame_id", 0) - frame_id) <= 2:
+                return None
 
         # Generate unique deterministic event_id
         date_tag = datetime.utcnow().strftime("%Y%m%d")
@@ -70,7 +68,8 @@ class EdgeOptimizer:
             "event_id": event_id,
             "class_name": class_name,
             "lat": curr_lat,
-            "lng": curr_lng
+            "lng": curr_lng,
+            "frame_id": frame_id
         })
         if len(self.recent_events) > 50:
             self.recent_events.pop(0)

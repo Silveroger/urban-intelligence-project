@@ -23,6 +23,34 @@ interface DetectionLogEntry {
   time: string;
 }
 
+interface PipelineEventPayload {
+  event_id: string;
+  bus_id?: string;
+  timestamp?: string;
+  latitude: number;
+  longitude: number;
+  road_segment_id?: string;
+  event_type: 'road_defect' | 'waterlogging' | 'traffic' | 'incident' | 'infrastructure' | 'pedestrian';
+  class_name: string;
+  confidence: number;
+  severity?: number;
+  evidence_uri?: string;
+}
+
+interface VideoStatusResponse {
+  is_running: boolean;
+  progress: number;
+  current_frame: number;
+  total_frames: number;
+  status_message: string;
+  last_result?: {
+    total_frames_analyzed?: number;
+    total_events_detected?: number;
+    total_incidents_flagged?: number;
+    events?: PipelineEventPayload[];
+  } | null;
+}
+
 const DETECTOR_LABELS: Record<string, string> = {
   road_defect: 'Road Defects (Potholes, Cracks, Dividers)',
   waterlogging: 'Waterlogging & Puddles',
@@ -55,18 +83,22 @@ export function VideoProcessingHub({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onNewEventRef = useRef(onNewEvent);
+  onNewEventRef.current = onNewEvent;
+
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-  // Handle video file preview
-  useEffect(() => {
-    if (videoFile) {
-      const url = URL.createObjectURL(videoFile);
-      setVideoPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
+  const handleVideoFileChange = (file: File | null) => {
+    setVideoFile(file);
+    if (videoPreviewUrl) {
+      URL.revokeObjectURL(videoPreviewUrl);
+    }
+    if (file) {
+      setVideoPreviewUrl(URL.createObjectURL(file));
     } else {
       setVideoPreviewUrl(null);
     }
-  }, [videoFile]);
+  };
 
   // Poll status when processing is active
   useEffect(() => {
@@ -74,7 +106,7 @@ export function VideoProcessingHub({
 
     const interval = setInterval(async () => {
       try {
-        const { data } = await axios.get(`${baseUrl}/api/v1/ingest/video/status`);
+        const { data } = await axios.get<VideoStatusResponse>(`${baseUrl}/api/v1/ingest/video/status`);
         setProgress(data.progress || 0);
         setStatusMessage(data.status_message || 'Analyzing frames...');
 
@@ -83,7 +115,7 @@ export function VideoProcessingHub({
           setStatusMessage('Processing completed successfully!');
           setProgress(100);
           if (data.last_result?.events) {
-            const mapped: DetectionLogEntry[] = data.last_result.events.map((e: any) => ({
+            const mapped: DetectionLogEntry[] = data.last_result.events.map((e) => ({
               id: e.event_id,
               type: e.event_type,
               class_name: e.class_name || e.event_type,
@@ -93,6 +125,25 @@ export function VideoProcessingHub({
             }));
             setDetectedLog(mapped);
             updateModelAccuracy(mapped);
+
+            // Push all detected events to the GIS map
+            if (onNewEventRef.current) {
+              data.last_result.events.forEach((evt) => {
+                onNewEventRef.current?.({
+                  event_id: evt.event_id,
+                  bus_id: evt.bus_id || busId,
+                  timestamp: evt.timestamp || new Date().toISOString(),
+                  latitude: evt.latitude,
+                  longitude: evt.longitude,
+                  road_segment_id: evt.road_segment_id || 'seg_detected',
+                  event_type: evt.event_type || 'road_defect',
+                  class_name: evt.class_name,
+                  confidence: evt.confidence,
+                  severity: evt.severity,
+                  evidence_uri: evt.evidence_uri,
+                });
+              });
+            }
           }
         }
       } catch {
@@ -108,7 +159,7 @@ export function VideoProcessingHub({
     }, 800);
 
     return () => clearInterval(interval);
-  }, [isProcessing, baseUrl]);
+  }, [isProcessing, baseUrl, busId]);
 
   // Compute model accuracy stats from detection log
   function updateModelAccuracy(entries: DetectionLogEntry[]) {
@@ -342,7 +393,7 @@ export function VideoProcessingHub({
                   Hardware Video Stream (.mp4, .avi, .mkv, .mov, .h264, .ts, .mjpeg, .raw)
                 </label>
                 <input type="file" accept="video/*,.h264,.h265,.ts,.mjpeg,.raw,.mkv,.mov,.flv,.webm"
-                  onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                  onChange={(e) => handleVideoFileChange(e.target.files?.[0] || null)}
                   style={{ fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}
                 />
               </div>

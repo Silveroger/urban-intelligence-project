@@ -22,6 +22,7 @@ Public transport vehicles (city buses and test fleet vehicles) traverse urban ro
 - Aggregate repeated observations from multiple bus passes into a canonical road segment condition score.
 - Visualize dense traffic flow and fleet positions on an interactive, hardware-accelerated GIS map.
 - Enable drill-down inspection of individual road segments, events, and evidence media.
+- Support live edge camera stream ingestion, video uploads, and hardware telemetry processing.
 
 ## 5. Scope & Feature Priorities
 
@@ -34,11 +35,12 @@ Public transport vehicles (city buses and test fleet vehicles) traverse urban ro
 - **Incident Inspector:** Panel showing incident classification, vehicle tracking IDs, plate text confidence, and incident timestamps.
 - **KPI Summary Cards:** High-level dashboard metrics (Total Road Segments, Critical Issues, Monitored Buses, Active Incidents).
 - **Layer & Severity Filters:** Multi-criteria filtering by event type, road condition tier, severity threshold, and bus fleet.
+- **Edge AI Video Ingestion Hub:** Ingestion modal supporting hardware video uploads, sample test runs, and selective detector toggles.
+- **GPS Telemetry Pipeline:** Streaming drawer for validating and transmitting live GPS batches directly into Supabase.
 
 ### P1 — Advanced Analytics & Operational Tools
 - **Dense Heatmap Overlay:** GPU-accelerated traffic density and defect concentration heatmaps powered by deck.gl.
-- **Time Scrubber / Trip Replay:** Temporal playback of historical bus runs and localized defect observation timelines.
-- **Evidence Media Modal:** Direct viewer for high-resolution inspection frames and cropped evidence clips.
+- **Live Desktop Scanner Window:** Real-time visual HUD window (`run_live_scanner.py`) displaying bounding boxes, telemetry, and detection feeds.
 - **Maintenance Priority Ranking:** Algorithmic work-order prioritization based on road condition degradation and traffic volume.
 - **Work-Order Export:** Export actionable defect reports (CSV/GeoJSON/PDF) for municipal field crews.
 - **Fleet Analytics:** Coverage metrics showing which city routes have been surveyed within the last 24/48 hours.
@@ -53,6 +55,7 @@ Public transport vehicles (city buses and test fleet vehicles) traverse urban ro
 - **FR-3:** All geospatial coordinates must conform strictly to GeoJSON format (`[longitude, latitude]`) at data boundaries and transform to Google Maps (`{lat, lng}`) only at rendering boundaries.
 - **FR-4:** Optical Character Recognition (OCR) plate detections must always display confidence scores alongside detected text; plate text must never be presented as absolute ground truth without confidence indicators.
 - **FR-5:** Inspecting any road segment, event, or incident must highlight the respective element on the map and open its dedicated inspector view.
+- **FR-6:** Video processing uploads must support selective detector configuration and report live progress back to the operator.
 
 ## 7. Non-Functional Requirements
 - **Performance:** Initial map view render under $1.5\text{s}$; smooth 60 FPS panning and zooming with $\ge 500$ road segments and $\ge 1,000$ active markers.

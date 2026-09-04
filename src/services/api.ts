@@ -19,16 +19,47 @@ const client = axios.create({
 
 export type SegmentHistory = { date: string; score: number }[];
 
+interface GeoJsonFeature {
+  type: string;
+  id?: string;
+  geometry?: {
+    type: string;
+    coordinates: [number, number][];
+  };
+  properties?: {
+    segment_id?: string;
+    name?: string;
+    condition_score?: number;
+    confidence?: number;
+    pothole_count?: number;
+    waterlogging_count?: number;
+    observation_count?: number;
+    last_updated?: string;
+  };
+}
+
+interface GeoJsonFeatureCollection {
+  type: string;
+  features: GeoJsonFeature[];
+}
+
+interface RawSegmentHistoryItem {
+  timestamp?: string;
+  date?: string;
+  condition_score?: number;
+  score?: number;
+}
+
 // §13 — GET /api/v1/segments/geojson
 export async function fetchSegments(): Promise<RoadSegment[]> {
   if (useMock) return mockRoadSegments;
   try {
-    const { data } = await client.get<any>('/api/v1/segments/geojson');
+    const { data } = await client.get<GeoJsonFeatureCollection | RoadSegment[]>('/api/v1/segments/geojson');
     // Map GeoJSON FeatureCollection to flat RoadSegment[]
-    if (data && data.features && Array.isArray(data.features)) {
-      return data.features.map((f: any) => ({
-        segment_id: f.properties?.segment_id || f.id,
-        name: f.properties?.name || f.properties?.segment_id || f.id,
+    if (data && 'features' in data && Array.isArray(data.features)) {
+      return data.features.map((f: GeoJsonFeature) => ({
+        segment_id: f.properties?.segment_id || f.id || 'unknown',
+        name: f.properties?.name || f.properties?.segment_id || f.id || 'Unknown Segment',
         geometry: f.geometry?.coordinates || [],
         condition_score: f.properties?.condition_score ?? 100,
         confidence: f.properties?.confidence ?? 1.0,
@@ -50,9 +81,9 @@ export async function fetchSegments(): Promise<RoadSegment[]> {
 export async function fetchSegmentHistory(segmentId: string): Promise<SegmentHistory> {
   if (useMock) return mockSegmentHistory[segmentId] ?? [];
   try {
-    const { data } = await client.get<any>(`/api/v1/segments/${segmentId}/history`);
+    const { data } = await client.get<RawSegmentHistoryItem[]>(`/api/v1/segments/${segmentId}/history`);
     if (Array.isArray(data)) {
-      return data.map((item: any) => ({
+      return data.map((item: RawSegmentHistoryItem) => ({
         date: item.timestamp ? item.timestamp.split('T')[0] : (item.date || ''),
         score: item.condition_score ?? item.score ?? 100,
       }));
@@ -80,7 +111,7 @@ export async function fetchIncidents(): Promise<Incident[]> {
   try {
     const { data } = await client.get<Incident[]>('/api/v1/incidents');
     if (Array.isArray(data)) {
-      return data.map((inc: any) => ({
+      return data.map((inc: Incident) => ({
         ...inc,
         incident_score: inc.incident_score ?? (inc.severity ? inc.severity / 4 : 0.8),
       }));

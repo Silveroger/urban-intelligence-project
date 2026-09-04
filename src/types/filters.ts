@@ -11,6 +11,8 @@ export interface FilterState {
     waterlogging: boolean;
     traffic: boolean;
     incident: boolean;
+    infrastructure?: boolean;
+    pedestrian?: boolean;
   };
   minSeverity: number;
   minConfidence: number;
@@ -18,7 +20,14 @@ export interface FilterState {
 
 export const DEFAULT_FILTERS: FilterState = {
   layers: { roads: true, events: true, incidents: true, buses: true, heatmap: false },
-  eventTypes: { road_defect: true, waterlogging: true, traffic: true, incident: true },
+  eventTypes: {
+    road_defect: true,
+    waterlogging: true,
+    traffic: true,
+    incident: true,
+    infrastructure: true,
+    pedestrian: true,
+  },
   minSeverity: 1,
   minConfidence: 0,
 };

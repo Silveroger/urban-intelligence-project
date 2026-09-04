@@ -5,7 +5,7 @@ export interface Event {
   latitude: number;
   longitude: number;
   road_segment_id: string;
-  event_type: 'road_defect' | 'waterlogging' | 'traffic' | 'incident';
+  event_type: 'road_defect' | 'waterlogging' | 'traffic' | 'incident' | 'infrastructure' | 'pedestrian';
   class_name?: string;
   confidence: number;
   severity?: number;

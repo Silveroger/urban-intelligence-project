@@ -1,21 +1,23 @@
 # Frontend Architecture
 
 ## 1. Directory Structure
-The frontend application resides in `urban-dashboard/src/` and is organized as follows:
+The frontend application resides in `src/` and is organized as follows:
 
 ```text
 src/
 ├── components/          # Focused, reusable presentation components
-│   ├── Analytics/       # Charts, historical trends, traffic stats
-│   ├── Cards/           # Metric cards (KPIs, status badges)
-│   ├── Details/         # Inspection drawer panels (Road, Event, Incident)
+│   ├── Analytics/       # Charts, condition distributions, degradation trends
+│   ├── Cards/           # SummaryCards (KPI metrics, status badges)
+│   ├── Details/         # Inspection drawer panels (RoadDetails, EventDetails, IncidentDetails)
+│   ├── GpsPipeline/     # GpsPipelineDrawer (Realtime telemetry stream & Supabase uploader)
 │   ├── Map/             # Google Maps, Advanced Markers, Polylines, DeckHeatmapOverlay
-│   └── Sidebar/         # Header, navigation, and FilterPanel
+│   ├── Sidebar/         # Header, Navigation, and FilterPanel
+│   └── VideoHub/        # VideoIngestModal, LiveDetectionOverlay, EdgeScannerModal
 ├── config/              # Centralized configuration (maps.ts, map IDs)
-├── data/                # Typed mock datasets (mockRoadSegments, mockEvents, etc.)
+├── data/                # Typed mock datasets (mockRoadSegments, mockEvents, mockBuses, etc.)
 ├── pages/               # Top-level view composition (Dashboard.tsx)
-├── services/            # Data layer abstractions (api.ts, websocket.ts)
-├── types/               # TypeScript interfaces (roadSegments, events, buses, filters)
+├── services/            # Data layer abstractions (api.ts, websocket.ts, gpsPipeline.ts, supabase.ts)
+├── types/               # TypeScript interfaces (roadSegments, events, buses, incidents, filters, gps)
 ├── utils/               # Coordinate conversions, roadColor mapping, date formatters
 ├── App.tsx              # Application root
 ├── index.css            # Design tokens, Tailwind directives, dark mode styling
@@ -24,22 +26,25 @@ src/
 
 ---
 
-## 2. Four-Way State Separation
-To maintain responsiveness and prevent unnecessary re-renders, the frontend isolates state into four distinct domains:
+## 2. Multi-Domain State Separation
+To maintain responsiveness and prevent unnecessary re-renders, the frontend isolates state into distinct domains:
 
 ```text
 ┌────────────────────────────────────────────────────────┐
-│ 1. Backend Data State                                  │
-│    (roadSegments, events, incidents, buses)            │
+│ 1. Backend & Stream Data State                         │
+│    (roadSegments, events, incidents, buses, summary)   │
 ├────────────────────────────────────────────────────────┤
-│ 2. Map Viewport State                                  │
+│ 2. Map Viewport & Overlay State                        │
 │    (center, zoom, active layers: polylines, heatmap)   │
 ├────────────────────────────────────────────────────────┤
 │ 3. Inspection UI State                                 │
-│    (selectedSegment, selectedEvent, drawerOpen)        │
+│    (selectedSegment, selectedEvent, selectedIncident)  │
 ├────────────────────────────────────────────────────────┤
 │ 4. Filter State                                        │
 │    (eventTypes, minSeverity, conditionTiers, busIds)   │
+├────────────────────────────────────────────────────────┤
+│ 5. Ingestion & Edge Video Processing State             │
+│    (videoModalOpen, isProcessing, progress, detections)│
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -57,6 +62,13 @@ The UI never imports mock data directly into presentation components. All data r
 │  Live REST API               │─►│  src/services/api.ts      │
 └──────────────────────────────┘  │  (VITE_USE_MOCK Switch)   │
                                   └─────────────┬─────────────┘
+┌──────────────────────────────┐                │
+│  FastAPI WebSocket /ws/live  │───────────────►│ src/services/websocket.ts
+└──────────────────────────────┘                │
+                                                ▼
+┌──────────────────────────────┐ ┌───────────────────────────┐
+│  Supabase Realtime Channel   │─►│  src/services/supabase.ts │
+└──────────────────────────────┘  └─────────────┬─────────────┘
                                                 │ Typed Models
                                                 ▼
                                   ┌───────────────────────────┐
@@ -102,6 +114,6 @@ The frontend maps backend `condition_score` values ($0-100$) to visual status co
 ---
 
 ## 7. Performance & Rendering Guidelines
-- **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`) as React `key` props. Never use array index for dynamic collections.
+- **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`, `incident_id`) as React `key` props. Never use array index for dynamic collections.
 - **Isolated Telemetry:** Real-time bus marker position updates must not trigger re-rendering of static road polyline layers.
 - **Memoized Calculations:** Use `useMemo` for computationally expensive filtering operations over large event datasets.
