@@ -116,8 +116,8 @@ async def trigger_video_processing(
     live detections to the dashboard.
 
     enabled_detectors: JSON string mapping category keys to booleans.
-        Keys: road_defect, waterlogging, traffic, incident.
-        Example: '{"road_defect": true, "waterlogging": false, "traffic": true, "incident": true}'
+        Keys: road_defect, waterlogging, traffic, incident, pedestrian.
+        Example: '{"road_defect": true, "waterlogging": false, "traffic": true, "incident": true, "pedestrian": true}'
         If a key is False the corresponding detector is completely skipped.
 
     Accepted video formats: .mp4 .avi .mkv .mov .h264 .h265 .mjpeg .ts .raw .flv .webm

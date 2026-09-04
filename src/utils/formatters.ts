@@ -14,6 +14,8 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   waterlogging: 'Waterlogging',
   traffic: 'Traffic',
   incident: 'Incident',
+  infrastructure: 'Infrastructure',
+  pedestrian: 'Pedestrian Safety',
 };
 
 export function getEventTypeLabel(type: string): string {
@@ -25,6 +27,8 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   waterlogging: '#3b82f6',  // blue
   traffic: '#f59e0b',       // amber
   incident: '#a855f7',      // purple
+  infrastructure: '#06b6d4', // cyan
+  pedestrian: '#f97316',     // safety warning amber/orange
 };
 
 export function getEventTypeColor(type: string): string {

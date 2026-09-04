@@ -13,6 +13,8 @@ class EventType(str, Enum):
     WATERLOGGING = "waterlogging"
     TRAFFIC = "traffic"
     INCIDENT = "incident"
+    INFRASTRUCTURE = "infrastructure"
+    PEDESTRIAN = "pedestrian"
 
 
 class ObservationEvent(BaseModel):

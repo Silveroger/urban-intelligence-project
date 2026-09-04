@@ -12,6 +12,7 @@ class ModelConfig:
     # Model weights path (supports YOLO 26n / custom Kaggle weights in .pt or .onnx formats)
     weights_path: str = "models/road_defect_yolo26n.pt"
     onnx_path: str = "models/road_defect_yolo26n.onnx"
+    normal_weights_path: str = "yolov8n.pt"
     candidate_weights: List[str] = field(default_factory=lambda: [
         "models/road_defect_yolo26n.pt",
         "models/road_defect_yolo26n.onnx",
@@ -48,12 +49,12 @@ class EdgeConfig:
     roi_left_pct: float = 0.12     # Cuts off left 12% (sidewalk / roadside clutter)
     roi_right_pct: float = 0.88    # Cuts off right 12% (sidewalk / roadside clutter)
 
-    # Detector enablement flags (Traffic, pedestrians, and incidents strictly disabled)
+    # Detector enablement flags (Road defects and vulnerable pedestrians enabled)
     enable_road_defect_detector: bool = True
     enable_waterlogging_detector: bool = True
     enable_traffic_detector: bool = False
     enable_incident_detector: bool = False
-    enable_pedestrian_detector: bool = False
+    enable_pedestrian_detector: bool = True
     
     # Class mappings & Severity configuration
     defect_classes: List[str] = field(default_factory=lambda: [
@@ -121,6 +122,7 @@ class EdgeConfig:
     ])
     
     pedestrian_classes: List[str] = field(default_factory=lambda: [
+        "vulnerable_person",
         "pedestrian",
         "school_child",
         "vulnerable_pedestrian"
@@ -138,5 +140,6 @@ class EdgeConfig:
         "illegal_parking": 2,
         "rash_driving": 4,
         "hit_and_run": 4,
-        "vulnerable_pedestrian": 3
+        "vulnerable_pedestrian": 3,
+        "vulnerable_person": 3
     })

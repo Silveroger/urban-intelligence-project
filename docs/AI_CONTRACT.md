@@ -55,8 +55,8 @@ Each perception event produced by computer vision models must conform to the fol
 
 ### 3.4 Pedestrian Safety Detection (`pedestrian`)
 - **Module:** `ai/detectors/pedestrian_detector.py`
-- **Classes:** `"vulnerable_pedestrian_crossing"`, `"pedestrian_in_danger"`.
-- **Criteria:** Triggered when pedestrians are detected crossing active roadway corridors away from designated crossings.
+- **Classes:** `"vulnerable_person"`, `"vulnerable_pedestrian_crossing"`, `"pedestrian_in_danger"`.
+- **Criteria:** Triggered when pedestrians/people are detected within active roadway corridors using standard YOLO inference.
 
 ### 3.5 Traffic Density & Flow (`traffic`)
 - **Module:** `ai/detectors/traffic_density_detector.py`

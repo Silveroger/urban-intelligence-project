@@ -44,12 +44,13 @@ class EdgeAIPipeline:
         self.bus_id = bus_id
         self.backend_url = backend_url
         self.model = self._load_yolo(weights_path)
+        self.normal_model = self._load_normal_yolo()
 
         # Initialize detector subsystems
         self.defect_detector = RoadDefectDetector(yolo_model=self.model)
         self.infra_detector = InfrastructureDetector(yolo_model=self.model)
-        self.traffic_detector = TrafficDensityDetector(yolo_model=self.model)
-        self.pedestrian_detector = PedestrianDetector(yolo_model=self.model)
+        self.traffic_detector = TrafficDensityDetector(yolo_model=self.normal_model or self.model)
+        self.pedestrian_detector = PedestrianDetector(yolo_model=self.normal_model or self.model)
         self.plate_recognizer = PlateRecognizer()
         self.tracker = VehicleTracker()
         self.optimizer = EdgeOptimizer(evidence_dir="backend/static/evidence")
@@ -112,12 +113,37 @@ class EdgeAIPipeline:
             print(f"[!] Note: YOLO model initialization fallback ({e}). Using OpenCV vision pipeline.")
             return None
 
-    # Default detector toggle map — Only road defects enabled until custom traffic model is trained
+    def _load_normal_yolo(self):
+        """
+        Loads standard pretrained YOLO nano model (e.g. yolov8n.pt / yolo26n with COCO classes)
+        specifically for person and general object detection without retraining.
+        If self.model already contains 'person' in its classes, reuses self.model.
+        """
+        try:
+            from ultralytics import YOLO
+
+            # If primary defect model already includes 'person', reuse it directly
+            if self.model is not None and hasattr(self.model, 'names'):
+                names_lower = [str(n).lower() for n in self.model.names.values()]
+                if "person" in names_lower or "pedestrian" in names_lower:
+                    return self.model
+
+            cfg = ModelConfig()
+            for candidate in [cfg.normal_weights_path, "yolov8n.pt", "ai/models/yolo26n.pt", "models/yolo26n.pt", "yolo26n.pt"]:
+                if candidate and Path(candidate).exists() and Path(candidate).stat().st_size > 1024:
+                    print(f"[*] Loaded standard YOLO model for vulnerable person detection: {candidate}")
+                    return YOLO(candidate)
+        except Exception as e:
+            print(f"[!] Note: Standard YOLO model initialization notice: {e}")
+        return None
+
+    # Default detector toggle map — Road defects & vulnerable person safety active
     DEFAULT_DETECTORS = {
         "road_defect": True,
         "waterlogging": True,
         "traffic": False,   # Disabled until custom traffic model is trained
         "incident": False,  # Disabled until custom traffic model is trained
+        "pedestrian": True, # Enabled: detects people on the road as vulnerable_person
     }
 
     def process_video(
@@ -187,6 +213,7 @@ class EdgeAIPipeline:
         run_waterlogging = det_flags.get("waterlogging", True) and cfg.enable_waterlogging_detector
         run_traffic = det_flags.get("traffic", False) and cfg.enable_traffic_detector
         run_incident = det_flags.get("incident", False) and cfg.enable_incident_detector
+        run_pedestrian = det_flags.get("pedestrian", True) and cfg.enable_pedestrian_detector
 
         # Setup GPS Synchronizer
         gps_sync = GPSSync(fps=fps)
@@ -352,27 +379,29 @@ class EdgeAIPipeline:
                                 on_event_callback({"type": "NEW_EVENT", "payload": evt})
 
                 # 4. Vulnerable Pedestrian Situations
-                if run_traffic:
+                if run_pedestrian:
                     pedestrians = self.pedestrian_detector.detect(frame)
                     for ped in pedestrians:
+                        cname = ped["class_name"]
+                        lbl_text = f"{cname.replace('_', ' ').upper()} - {int(ped['confidence']*100)}%"
                         current_boxes.append({
                             "bbox": ped["bbox"],
-                            "label": f"CAUTION: {ped['class_name'].upper()}",
-                            "color": (0, 128, 255)
+                            "label": lbl_text,
+                            "color": (0, 140, 255)  # Warning Amber
                         })
-                        alert_banner = f"PEDESTRIAN SAFETY ALERT: {ped['class_name'].upper()}"
+                        alert_banner = f"SAFETY ALERT: {cname.replace('_', ' ').upper()} ON ROAD"
                         alert_color = (0, 140, 255)
 
                         evt = self.optimizer.package_observation(
                             bus_id=self.bus_id,
                             telemetry=telemetry,
-                            class_name=ped["class_name"],
+                            class_name=cname,
                             confidence=ped["confidence"],
                             severity=ped["severity"],
                             frame=frame,
                             bbox=ped["bbox"],
                             frame_id=frame_idx,
-                            event_type="traffic"
+                            event_type="pedestrian"
                         )
                         if evt:
                             events_generated.append(evt)

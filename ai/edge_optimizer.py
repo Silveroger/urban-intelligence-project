@@ -46,12 +46,25 @@ class EdgeOptimizer:
         if confidence < 0.25:
             return None
 
-        # Deduplication check: Avoid re-emitting identical class within 5 frames at identical pixel location
+        # Deduplication check: Avoid re-emitting identical detection within 2 frames at similar bounding box (IoU > 0.40)
         curr_lat = telemetry["latitude"]
         curr_lng = telemetry["longitude"]
-        for prev in self.recent_events[-5:]:
+        for prev in self.recent_events[-15:]:
             if prev["class_name"] == class_name and abs(prev.get("frame_id", 0) - frame_id) <= 2:
-                return None
+                prev_b = prev.get("bbox")
+                if prev_b:
+                    ix1 = max(bbox[0], prev_b[0])
+                    iy1 = max(bbox[1], prev_b[1])
+                    ix2 = min(bbox[2], prev_b[2])
+                    iy2 = min(bbox[3], prev_b[3])
+                    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+                    area1 = max(1, (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]))
+                    area2 = max(1, (prev_b[2] - prev_b[0]) * (prev_b[3] - prev_b[1]))
+                    iou = inter / float(area1 + area2 - inter)
+                    if iou > 0.40:
+                        return None
+                else:
+                    return None
 
         # Generate unique deterministic event_id
         date_tag = datetime.utcnow().strftime("%Y%m%d")
@@ -69,7 +82,8 @@ class EdgeOptimizer:
             "class_name": class_name,
             "lat": curr_lat,
             "lng": curr_lng,
-            "frame_id": frame_id
+            "frame_id": frame_id,
+            "bbox": bbox
         })
         if len(self.recent_events) > 50:
             self.recent_events.pop(0)

@@ -208,6 +208,7 @@ export function VideoProcessingHub({
       waterlogging: filters.eventTypes.waterlogging,
       traffic: filters.eventTypes.traffic,
       incident: filters.eventTypes.incident,
+      pedestrian: filters.eventTypes.pedestrian ?? true,
     }));
     if (videoFile) formData.append('video_file', videoFile);
     if (gpsFile) formData.append('gps_file', gpsFile);

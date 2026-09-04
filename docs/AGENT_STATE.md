@@ -9,7 +9,7 @@
     - Waterlogging: Stagnant water and submerged lane patches
     - Infrastructure: Missing dividers, missing zebra crossings, damaged signboards (`ai/detectors/infrastructure_detector.py`)
     - Traffic Density & Congestion: Vehicle density estimation and clustering (`ai/detectors/traffic_density_detector.py`)
-    - Pedestrian Safety: Vulnerable pedestrian crossing alerts (`ai/detectors/pedestrian_detector.py`)
+    - Pedestrian Safety: Vulnerable person on-road detection (`vulnerable_person`) via dual-model execution (standard pretrained YOLO nano for person classes alongside custom defect weights) (`ai/detectors/pedestrian_detector.py`)
     - Offending Vehicles: Vehicle tracking (`ai/tracker/vehicle_tracker.py`) and OCR license plate recognition (`ai/detectors/plate_recognizer.py`)
   - Edge Optimizer: ONNX Runtime export, FP16/INT8 quantization, TensorRT acceleration (`ai/edge_optimizer.py`).
   - Desktop Live Scanner Window: Interactive popup window for visual inspection and video diagnostics (`run_live_scanner.py`).
