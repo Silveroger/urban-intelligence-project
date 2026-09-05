@@ -121,22 +121,26 @@ cp .env.example .env
 ## 5. Schema Alignment & Migration
 
 > [!IMPORTANT]
-> **DO NOT RECREATE TABLES IN SUPABASE!**  
-> The backend is built to connect directly to the existing tables (`buses`, `gps_points`, `road_segments`, `observations`, `incidents`, `segment_history`).
+> **DO NOT DROP TABLES IN SUPABASE!**  
+> To reconcile the existing Supabase tables (`buses`, `gps_points`, `road_segments`, `observations`, `incidents`, `segment_history`) with canonical contracts without data loss, use the production reconciliation script.
 
-### Discrepancy Resolution
-The design document (`docs/DATABASE_SCHEMA.md`) was drafted before the database was provisioned. The live Supabase schema uses UUID primary keys and specific column names. The backend maps all database columns directly to the required API contracts.
+### Discrepancy Resolution & Safe Migration
+The initial database schema used legacy column names and UUID primary keys. The backend models and API routes are built against canonical names (`segment_id`, `geom`, `condition_score`, `observed_at`, `event_type`).
 
-To add non-breaking convenience columns and performance GiST indexes:
+To reconcile the schema safely within a single transaction:
 1. Open the **SQL Editor** in your Supabase Dashboard.
-2. Copy and execute [`scripts/migrate_schema.sql`](file:///c:/Users/Aryush%20Butar/Desktop/SIH%202026/urban-intelligence-project/backend/scripts/migrate_schema.sql).
+2. Copy and execute [`scripts/migrate_to_documented_schema.sql`](scripts/migrate_to_documented_schema.sql).
 
-This script idempotently runs:
-- Adds `pothole_count`, `waterlogging_count`, and `confidence` to `road_segments`.
-- Adds `waterlogging_count`, `confidence`, and `bus_id` to `segment_history`.
-- Adds `vehicle_track_id`, `plate_text`, `plate_confidence`, and `evidence_uri` to `incidents`.
-- Adds `status` (`'confirmed'` or `'quarantined'`) to `observations`.
+This script idempotently and safely:
+- Validates preflight assumptions (verifies all 6 tables exist and PostGIS is installed).
+- Preserves all legacy UUIDs and columns (`road_name`, `health_score`, `location`) as auxiliary columns without dropping data.
+- Adds canonical columns (`segment_id`, `geom`, `condition_score`, `event_type`, `observed_at`, `evidence_uri`).
+- Converts severity values using explicit contract mapping rules.
+- Re-establishes all 6 foreign key constraints with verified `ON DELETE` rules.
 - Creates GiST spatial indexes on all spatial columns using the `gis` schema.
+- Resets BIGSERIAL sequences safely to `MAX(id) + 1`.
+
+See [`../docs/BUGS_AND_DISCREPANCIES.md`](../docs/BUGS_AND_DISCREPANCIES.md) for full defect analysis and resolution details.
 
 ---
 
