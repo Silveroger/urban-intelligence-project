@@ -5,7 +5,7 @@ This document specifies the authoritative technologies, libraries, runtime envir
 
 ---
 
-## 2. Frontend Technologies (`urban-dashboard`)
+## 2. Frontend Technologies (`src/`)
 
 | Category | Technology | Version | Purpose & Architectural Role |
 |---|---|---|---|
@@ -23,14 +23,21 @@ This document specifies the authoritative technologies, libraries, runtime envir
 
 ---
 
-## 3. Backend & Data Infrastructure
+## 3. Backend & Data Infrastructure (`backend/`)
 
-| Category | Technology | Target Version | Purpose & Architectural Role |
+| Category | Technology | Pinned Version | Purpose & Architectural Role |
 |---|---|---|---|
-| **Application Server** | `FastAPI` (Python) | `3.11+` | Asynchronous REST endpoints and WebSocket server for high-throughput metadata ingestion and live client broadcasts. |
-| **Spatial Database** | `PostgreSQL` + `PostGIS` | `15+` / `3.3+` | Authoritative persistent storage for spatial geometry (`GEOMETRY(LineString, 4326)`), spatial indexing (GiST), road matching, and multi-pass observation aggregation. |
-| **Object Storage** | `S3-Compatible / MinIO` | Latest | Secure, scalable storage for evidence media, cropped defect frames, and incident clips referenced by URI. |
-| **Transport Layer** | `REST (JSON) + WebSocket` | `HTTP/2` / `WSS` | REST for initial state hydration and historical queries; WebSocket (`/ws/live`) for real-time telemetry and event updates. |
+| **Web Framework** | `FastAPI` | `>=0.110.0,<0.120.0` | Asynchronous REST endpoints, automated OpenAPI/Swagger documentation, and request validation. |
+| **ASGI Web Server** | `Uvicorn[standard]` | `>=0.28.0,<0.35.0` | Lightning-fast ASGI production server handling concurrent async HTTP and WebSocket requests. |
+| **Validation & Settings** | `Pydantic` & `Pydantic-Settings` | `>=2.6.0,<3.0.0` | Schema validation, environment variable parsing, and type coercion. |
+| **ORM / Query Engine** | `SQLAlchemy[asyncio]` | `>=2.0.28,<2.1.0` | Async relational mapping, connection pooling, and transactional session management. |
+| **Database Driver** | `asyncpg` | `>=0.31.0,<0.32.0` | High-performance asynchronous PostgreSQL database client. |
+| **Spatial Extension** | `GeoAlchemy2` | `>=0.14.0,<0.16.0` | Spatial geometry integration with SQLAlchemy, supporting WKB/WKT and PostGIS types. |
+| **Database & Auth Platform** | `Supabase` (Python SDK) | `>=2.3.0,<2.14.0` | PostgreSQL hosting, PostGIS geospatial functions, and Storage client management. |
+| **Spatial Database Engine** | `PostgreSQL + PostGIS` | `15+` / `3.3+` | Authoritative persistent storage with PostGIS functions hosted in dedicated `gis` schema. |
+| **Object Storage** | `Supabase Storage` | Latest (`road-evidence`) | Secure storage for defect crop frames and incident video clips with signed URL access. |
+| **Real-time Protocol** | `WebSockets` | `>=12.0,<14.0` | Native ASGI WebSocket streaming at `/ws/live` for bus telemetry and perception events. |
+| **Testing Framework** | `pytest` & `pytest-asyncio` | `>=8.0.0` / `>=0.23.5` | Async unit, route, and validation test suite with in-memory fixtures. |
 
 ---
 
@@ -45,6 +52,7 @@ This document specifies the authoritative technologies, libraries, runtime envir
 ---
 
 ## 5. Technology Constraints & Decisions
-- **No Deprecated Map Layers:** Google Maps deprecated `HeatmapLayer` is explicitly forbidden; `@deck.gl/google-maps` is the designated heatmap technology (see [DECISIONS.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/DECISIONS.md)).
+- **No Deprecated Map Layers:** Google Maps deprecated `HeatmapLayer` is explicitly forbidden; `@deck.gl/google-maps` is the designated heatmap technology (see [`docs/DECISIONS.md`](DECISIONS.md)).
 - **Coordinate Transformations:** All spatial coordinates are stored and transmitted in GeoJSON `[longitude, latitude]` (EPSG:4326) and mapped to `{lat, lng}` solely at Google Maps rendering boundaries.
+- **PostGIS `gis` Schema:** PostGIS functions are hosted under the `gis` schema (e.g. `gis.ST_MakePoint`, `gis.ST_DWithin`, `gis.ST_Distance`, `gis.ST_AsGeoJSON`).
 - **Provider Abstraction:** The frontend consumes data through `services/api.ts` and `services/websocket.ts`, enabling seamless switching between mock mode (`VITE_USE_MOCK=true`) and live backend endpoints without component modification.

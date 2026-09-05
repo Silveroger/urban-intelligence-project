@@ -1,10 +1,23 @@
 # Project Backlog & Planned Work
 
 ## 1. P0 — Immediate Integration Tasks
-- [ ] **REST API Live Data Sync:** Connect `src/services/api.ts` to live FastAPI endpoints (`/api/v1/segments/geojson`, `/api/v1/events`, `/api/v1/incidents`, `/api/v1/buses`).
-- [ ] **WebSocket Real-Time Consumer:** Connect `src/services/websocket.ts` to `/ws/live` for real-time bus telemetry updates and instant event markers.
-- [ ] **Contract Fixture Validation:** Add automated contract validation tests to verify API payload shapes against TypeScript interfaces.
-- [ ] **Live Error Handling:** Add toast notifications and retry mechanisms for network failures and WebSocket reconnects.
+
+### Completed Backend P0 Baseline (Commit `873553f`)
+- [x] **FastAPI Backend Scaffold:** Async server setup with CORS, lifespan management, and custom exception handling.
+- [x] **Database & PostGIS Integration:** SQLAlchemy 2.0 Async + asyncpg models and queries qualified in `gis` schema.
+- [x] **REST Endpoints:** Complete API suite for road segments, defect events, traffic incidents, fleet buses, and telemetry.
+- [x] **WebSocket Live Stream:** Real-time `/ws/live` endpoint broadcasting `BUS_TELEMETRY` and `NEW_EVENT` frames.
+- [x] **Spatial Engines:** PostGIS map-matching (`ST_DWithin`) and deterministic road health scoring engine.
+- [x] **Evidence Media:** Supabase Storage integration with signed URL generation.
+- [x] **Schema Reconciliation Migration:** Production-grade transactional script (`backend/scripts/migrate_to_documented_schema.sql`).
+- [x] **Backend Test Suite:** Unit, route, coordinates, scoring, and websocket test cases with in-memory fixtures.
+
+### Active P0 Integration Tasks
+- [ ] **Execute Schema Reconciliation:** Run `migrate_to_documented_schema.sql` in Supabase SQL Editor to align live database with canonical schema.
+- [ ] **Fix Frontend Segments Response Ingestion:** Update `src/services/api.ts` to parse GeoJSON `FeatureCollection` or request `?format=flat` ([BUG-001](BUGS_AND_DISCREPANCIES.md#bug-001-get-apiv1segmentsgeojson-response-shape-mismatch)).
+- [ ] **Align Incident Severity Model:** Add `severity` ($1-4$) and `severity_label` to `src/types/incidents.ts` and `IncidentInspector.tsx` ([BUG-002](BUGS_AND_DISCREPANCIES.md#bug-002-incident-metric-discrepancy-incident_score-vs-severity)).
+- [ ] **Connect Frontend WebSocket Client:** Wire `src/services/websocket.ts` to `Dashboard.tsx` to animate live fleet buses and render live event markers ([BUG-004](BUGS_AND_DISCREPANCIES.md#bug-004-frontend-websocket-client-disconnected-from-ui-state)).
+- [ ] **WebSocket Reconnection & Resilience:** Implement auto-reconnection with exponential backoff and ping heartbeats ([BUG-010](BUGS_AND_DISCREPANCIES.md#bug-010-missing-websocket-auto-reconnection--backoff-in-frontend)).
 
 ---
 

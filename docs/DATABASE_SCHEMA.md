@@ -1,7 +1,8 @@
 # Database Schema & Spatial Contract
 
 ## 1. Overview
-The persistent data store for the platform is **PostgreSQL (15+)** with the **PostGIS (3.3+)** extension enabled. Spatial geometries are stored using SRID `4326` (WGS84).
+The persistent data store for the platform is **PostgreSQL (15+)** with the **PostGIS (3.3+)** extension enabled. 
+In Supabase, PostGIS spatial functions are provisioned under the **`gis` schema** (e.g. `gis.ST_MakePoint`, `gis.ST_DWithin`, `gis.ST_Distance`, `gis.ST_AsGeoJSON`). Spatial geometries are stored using SRID `4326` (WGS84).
 
 ---
 
@@ -9,23 +10,24 @@ The persistent data store for the platform is **PostgreSQL (15+)** with the **Po
 
 ```text
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│     buses       │◄──────│     trips       │──────►│     routes      │
+│     buses       │◄──────│   gps_points    │       │     routes      │
+└────────┬────────┘       └─────────────────┘       └─────────────────┘
+         │
+         ▼
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│  observations   │──────►│  road_segments  │◄──────│ segment_history │
 └────────┬────────┘       └────────┬────────┘       └─────────────────┘
          │                         │
          ▼                         ▼
-┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│   gps_points    │       │  observations   │──────►│  road_segments  │
-└─────────────────┘       └────────┬────────┘       └────────┬────────┘
-                                   │                         │
-                                   ▼                         ▼
-                          ┌─────────────────┐       ┌─────────────────┐
-                          │    evidence     │       │ segment_history │
-                          └─────────────────┘       └─────────────────┘
+┌─────────────────┐       ┌─────────────────┐
+│    evidence     │       │    incidents    │
+│ (Supabase S3)   │       └─────────────────┘
+└─────────────────┘
 ```
 
 ---
 
-## 3. Entity Definitions
+## 3. Canonical Entity Definitions
 
 ### 3.1 `road_segments`
 Stores canonical city road network centerlines and current aggregate condition metrics.
@@ -49,8 +51,8 @@ Stores validated detections emitted by edge AI and sensing fleet vehicles.
 ```sql
 CREATE TABLE observations (
     observation_id VARCHAR(64) PRIMARY KEY,
-    bus_id VARCHAR(64) REFERENCES buses(bus_id),
-    segment_id VARCHAR(64) REFERENCES road_segments(segment_id),
+    bus_id VARCHAR(64) REFERENCES buses(bus_id) ON DELETE SET NULL,
+    segment_id VARCHAR(64) REFERENCES road_segments(segment_id) ON DELETE SET NULL,
     geom GEOMETRY(Point, 4326) NOT NULL,
     event_type VARCHAR(32) NOT NULL, -- road_defect, waterlogging, traffic, incident
     class_name VARCHAR(64),
@@ -58,6 +60,8 @@ CREATE TABLE observations (
     severity SMALLINT CHECK (severity BETWEEN 1 AND 4),
     evidence_uri VARCHAR(512),
     observed_at TIMESTAMPTZ NOT NULL,
+    metadata JSONB,
+    status VARCHAR(32) DEFAULT 'confirmed', -- confirmed or quarantined
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_observations_geom ON observations USING GIST (geom);
@@ -70,13 +74,13 @@ Stores historical passes and longitudinal condition trends for each road segment
 ```sql
 CREATE TABLE segment_history (
     history_id BIGSERIAL PRIMARY KEY,
-    segment_id VARCHAR(64) REFERENCES road_segments(segment_id),
+    segment_id VARCHAR(64) REFERENCES road_segments(segment_id) ON DELETE CASCADE,
     condition_score NUMERIC(5, 2) NOT NULL,
-    confidence NUMERIC(3, 2) NOT NULL,
-    pothole_count INTEGER NOT NULL,
-    waterlogging_count INTEGER NOT NULL,
+    confidence NUMERIC(3, 2) NOT NULL DEFAULT 1.00,
+    pothole_count INTEGER NOT NULL DEFAULT 0,
+    waterlogging_count INTEGER NOT NULL DEFAULT 0,
     bus_id VARCHAR(64),
-    recorded_at TIMESTAMPTZ NOT NULL
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_segment_history_segment_time ON segment_history(segment_id, recorded_at DESC);
 ```
@@ -89,14 +93,18 @@ CREATE TABLE buses (
     vehicle_number VARCHAR(32),
     route_id VARCHAR(64),
     status VARCHAR(32) DEFAULT 'active',
+    last_latitude DOUBLE PRECISION,
+    last_longitude DOUBLE PRECISION,
     last_ping TIMESTAMPTZ
 );
 
 CREATE TABLE gps_points (
     point_id BIGSERIAL PRIMARY KEY,
-    bus_id VARCHAR(64) REFERENCES buses(bus_id),
+    bus_id VARCHAR(64) REFERENCES buses(bus_id) ON DELETE CASCADE,
     geom GEOMETRY(Point, 4326) NOT NULL,
     heading_deg NUMERIC(5, 2),
+    speed_kmh DOUBLE PRECISION,
+    accuracy_meters DOUBLE PRECISION,
     recorded_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX idx_gps_points_geom ON gps_points USING GIST (geom);
@@ -108,20 +116,33 @@ Stores traffic violations, obstructions, and vehicle tracking data.
 ```sql
 CREATE TABLE incidents (
     incident_id VARCHAR(64) PRIMARY KEY,
+    road_segment_id VARCHAR(64) REFERENCES road_segments(segment_id) ON DELETE SET NULL,
+    observation_id VARCHAR(64) REFERENCES observations(observation_id) ON DELETE SET NULL,
     geom GEOMETRY(Point, 4326) NOT NULL,
     incident_type VARCHAR(64) NOT NULL,
-    severity SMALLINT DEFAULT 1,
+    severity SMALLINT DEFAULT 1 CHECK (severity BETWEEN 1 AND 4),
     vehicle_track_id VARCHAR(64),
     plate_text VARCHAR(32),
     plate_confidence NUMERIC(3, 2),
     evidence_uri VARCHAR(512),
-    recorded_at TIMESTAMPTZ NOT NULL
+    description VARCHAR(512),
+    status VARCHAR(32) DEFAULT 'open',
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_incidents_geom ON incidents USING GIST (geom);
 ```
 
 ---
 
-## 4. Ownership & Migration Rules
-- **Backend/Geospatial Owner:** Butar maintains all DDL migrations, PostGIS spatial indexing, and aggregation views.
-- **Frontend Boundary:** The dashboard never connects directly to PostgreSQL/PostGIS. All interactions occur strictly through REST API endpoints and WebSocket messages.
+## 4. Production Schema Reconciliation Strategy
+
+The initial Supabase database was provisioned with legacy column names (`id UUID`, `road_name`, `health_score`, `geometry`, `location`, `observation_type`, `detected_at`, `evidence_path`).
+
+To safely transition live tables to the canonical contract without data loss:
+1. **Authoritative Migration Script:** Execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql) in the Supabase SQL Editor.
+2. **Safety Guarantees:**
+   - Entire migration runs in a single transactional block (`BEGIN ... COMMIT`).
+   - Legacy columns and UUIDs are non-destructively preserved as auxiliary fields.
+   - Preflight assertions verify existing row counts, foreign key constraints, and PostGIS geometry validity.
+   - Auto-incrementing sequences are reset to `MAX(id) + 1`.
+3. **Known Schema Discrepancies:** Tracked in [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).

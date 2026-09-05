@@ -3,15 +3,16 @@
 ## 1. Prerequisites
 - **Node.js:** v18.0.0+ (v20+ LTS recommended)
 - **Package Manager:** `npm` (bundled with Node.js)
+- **Python:** v3.10 to v3.14
 - **Google Maps Platform Account:** With Maps JavaScript API enabled and a Vector Map ID configured.
+- **Supabase Account:** PostgreSQL database instance with PostGIS installed in the `gis` schema.
 
 ---
 
-## 2. Quickstart (`urban-dashboard`)
+## 2. Frontend Setup (`urban-dashboard`)
 
 1. **Install Dependencies:**
    ```bash
-   cd urban-dashboard
    npm install
    ```
 
@@ -25,11 +26,9 @@
    ```bash
    npm run dev
    ```
-   The application will be accessible at `http://localhost:5173`.
+   The application runs at `http://localhost:5173`.
 
----
-
-## 3. Environment Variables Reference
+### Frontend Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -40,7 +39,62 @@
 
 ---
 
+## 3. Backend Setup (`backend/`)
+
+1. **Create and Activate Virtual Environment:**
+   ```bash
+   cd backend
+   python -m venv .venv
+
+   # On Windows (PowerShell):
+   .venv\Scripts\Activate.ps1
+
+   # On macOS/Linux:
+   source .venv/bin/activate
+   ```
+
+2. **Install Dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure Backend Environment Variables:**
+   Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Run Database Migration Script:**
+   Open the Supabase SQL Editor and execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql).
+
+5. **Start Backend Server:**
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+   - OpenAPI Docs: `http://localhost:8000/docs`
+   - ReDoc: `http://localhost:8000/redoc`
+   - Health Check: `http://localhost:8000/health`
+
+### Backend Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `ENVIRONMENT` | Yes | `development` | Deployment environment (`development`, `production`). |
+| `PORT` | Yes | `8000` | HTTP and WebSocket server port. |
+| `HOST` | Yes | `0.0.0.0` | Server host binding. |
+| `DATABASE_URL` | Yes | — | Async PostgreSQL connection string (`postgresql+asyncpg://...`). |
+| `POSTGIS_SCHEMA` | Yes | `gis` | PostgreSQL schema where PostGIS extension is installed. |
+| `SUPABASE_URL` | Yes | — | Supabase project URL. |
+| `SUPABASE_ANON_KEY` | Yes | — | Supabase public anonymous API key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Supabase service role key (backend server only). |
+| `SUPABASE_STORAGE_BUCKET` | Yes | `road-evidence` | Supabase Storage bucket for defect and incident media. |
+| `MAP_MATCH_MAX_DISTANCE_METERS`| No | `25.0` | Maximum search radius for snapping GPS points to road segments. |
+| `CONFIDENCE_THRESHOLD` | No | `0.50` | Minimum confidence score to confirm and score observations. |
+| `CORS_ORIGINS` | Yes | `http://localhost:5173` | Comma-separated allowed frontend origins. |
+
+---
+
 ## 4. Key Security Rules
-- **Never commit `.env`:** Keep `.env` strictly in `.gitignore`.
+- **Never commit `.env`:** Keep `.env` strictly in `.gitignore` in both root and `backend/`.
 - **API Key Restrictions:** Configure HTTP referrer restrictions in Google Cloud Console (`localhost:5173/*` and production domains).
-- **No Console Key Output:** Do not print or log API keys or bearer tokens in source code or debug logs.
+- **Service Role Key:** The `SUPABASE_SERVICE_ROLE_KEY` has administrative access and must never be exposed to frontend builds or client code.

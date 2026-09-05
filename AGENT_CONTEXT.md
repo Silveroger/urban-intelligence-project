@@ -16,11 +16,13 @@ Detailed domain specifications are strictly owned by their designated documents 
 ---
 
 ## 3. Subsystem Ownership & Boundaries
-Eshan leads the **GIS Frontend Dashboard** (`urban-dashboard/src/`).
-
-- **Frontend Owns:** Map rendering, vector polylines, Advanced Markers, deck.gl heatmap overlays, multi-tier filters, segment/event/incident inspector drawers, historical degradation charts, and responsive UI state.
-- **Frontend Does NOT Own:** Machine learning model training, client-side AI inference, GPS road-matching algorithms, PostGIS spatial indexing, or multi-pass condition score computation. The frontend visualizes the backend's persistent urban state.
-- **Full Team Ownership:** Documented in [MODULE_OWNERSHIP.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/MODULE_OWNERSHIP.md).
+- **GIS Frontend Dashboard (`src/`):** Led by Eshan.
+  - **Frontend Owns:** Map rendering, vector polylines, Advanced Markers, deck.gl heatmap overlays, multi-tier filters, segment/event/incident inspector drawers, historical degradation charts, and responsive UI state.
+  - **Frontend Does NOT Own:** Machine learning model training, client-side AI inference, GPS road-matching algorithms, PostGIS spatial indexing, or multi-pass condition score computation. The frontend visualizes the backend's persistent urban state.
+- **Backend & Geospatial Ingestion (`backend/`):** Led by Aryush Butar.
+  - **Backend Owns:** FastAPI async services, PostGIS spatial indexing, GPS map-matching (`ST_DWithin`), multi-pass score aggregation, REST/WebSocket API endpoints (`/api/v1/*`, `/ws/live`), Supabase Storage evidence integration, and database schema migrations.
+  - **Backend Does NOT Own:** Client-side React rendering or edge computer vision model training.
+- **Full Team Ownership:** Documented in [`docs/MODULE_OWNERSHIP.md`](docs/MODULE_OWNERSHIP.md).
 
 ---
 
@@ -32,12 +34,16 @@ Eshan leads the **GIS Frontend Dashboard** (`urban-dashboard/src/`).
 2. **Telemetry Speed Constraint:**
    - Vehicle speed is **optional** in prototype telemetry. Bus telemetry requires only `bus_id`, `timestamp`, `latitude`, `longitude`, and optional `heading_deg`.
 3. **Data Layer Abstraction:**
-   - The UI never imports mock data directly. All data access occurs via `src/services/api.ts` and `src/services/websocket.ts`.
+   - The UI never imports mock data directly into presentation components. All data access occurs via `src/services/api.ts` and `src/services/websocket.ts`.
    - `VITE_USE_MOCK=true` allows full offline development and testing.
 4. **Heatmap Technology:**
    - Google Maps native `HeatmapLayer` is deprecated. Use `@deck.gl/google-maps` and `@deck.gl/aggregation-layers` inside `DeckHeatmapOverlay.tsx`.
 5. **OCR Plate Text Caution:**
    - Detected license plate strings must always be presented alongside their `plate_confidence` score. Never present raw OCR as absolute ground truth.
+6. **PostGIS Schema Qualification:**
+   - In Supabase, PostGIS spatial functions are located in the `gis` schema. Backend raw queries and DDL must qualify functions with `gis.` or ensure `gis` is included in the connection search path.
+7. **Database Migration Safety:**
+   - Schema modifications must be non-destructive and transactional. Use [`backend/scripts/migrate_to_documented_schema.sql`](backend/scripts/migrate_to_documented_schema.sql) to safely reconcile legacy database states.
 
 ---
 
@@ -57,17 +63,18 @@ Every category of project information has exactly ONE authoritative document:
 | Category | Authoritative Document | Contents & Scope |
 |---|---|---|
 | **1. Agent Context** | `AGENT_CONTEXT.md` *(this file)* | Executive project briefing, critical constraints, agent operating rules. |
-| **2. Product Requirements** | [PRD.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/PRD.md) | Problem statement, user personas, P0/P1/P2 feature scope, acceptance criteria, non-goals. |
-| **3. Tech Stack** | [TECH_STACK.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/TECH_STACK.md) | Libraries, versions, infrastructure, and technology-specific purposes. |
-| **4. Architecture** | [ARCHITECTURE.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/ARCHITECTURE.md) | End-to-end data pipeline, subsystem boundaries, integration architecture. |
-| **5. API Contract** | [API_CONTRACT.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/API_CONTRACT.md) | REST endpoints, WebSocket frame formats, JSON schemas, error codes. |
-| **6. AI Contract** | [AI_CONTRACT.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/AI_CONTRACT.md) | AI perception structured output schemas, defect classes, confidence rules. |
-| **7. Database Schema** | [DATABASE_SCHEMA.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/DATABASE_SCHEMA.md) | PostgreSQL + PostGIS spatial schema, tables, geometry types, spatial indexing. |
-| **8. Module Ownership** | [MODULE_OWNERSHIP.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/MODULE_OWNERSHIP.md) | Team subsystem ownership, paths, and cross-boundary collaboration policies. |
-| **9. Decisions (ADRs)** | [DECISIONS.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/DECISIONS.md) | Architectural Decision Records (ADR-001 through ADR-007) and rationale. |
-| **10. Agent State** | [AGENT_STATE.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/AGENT_STATE.md) | Temporary implementation baseline, active milestones, and known blockers. |
-| **11. Backlog** | [BACKLOG.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/BACKLOG.md) | Prioritized backlog tasks across P0, P1, and P2 tiers. |
-| **12. Environment** | [ENVIRONMENT.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/ENVIRONMENT.md) | Local development setup, npm scripts, and environment variable configuration. |
-| **13. Security** | [SECURITY.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/SECURITY.md) | Security baseline, secrets handling, API key restrictions, CORS, and data privacy. |
-| **14. Testing** | [TESTING.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/TESTING.md) | Multi-tier testing strategy, verification commands, and Definition of Done. |
-| **15. Frontend Architecture** | [FRONTEND_ARCHITECTURE.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/FRONTEND_ARCHITECTURE.md) | Directory structure, state separation, map lifecycle, and color threshold rules. |
+| **2. Product Requirements** | [`docs/PRD.md`](docs/PRD.md) | Problem statement, user personas, P0/P1/P2 feature scope, acceptance criteria, non-goals. |
+| **3. Tech Stack** | [`docs/TECH_STACK.md`](docs/TECH_STACK.md) | Libraries, versions, infrastructure, and technology-specific purposes. |
+| **4. Architecture** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | End-to-end data pipeline, subsystem boundaries, integration architecture. |
+| **5. API Contract** | [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) | REST endpoints, WebSocket frame formats, JSON schemas, error codes. |
+| **6. AI Contract** | [`docs/AI_CONTRACT.md`](docs/AI_CONTRACT.md) | AI perception structured output schemas, defect classes, confidence rules. |
+| **7. Database Schema** | [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) | PostgreSQL + PostGIS spatial schema, tables, geometry types, spatial indexing. |
+| **8. Module Ownership** | [`docs/MODULE_OWNERSHIP.md`](docs/MODULE_OWNERSHIP.md) | Team subsystem ownership, paths, and cross-boundary collaboration policies. |
+| **9. Decisions (ADRs)** | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architectural Decision Records (ADR-001 through ADR-010) and rationale. |
+| **10. Agent State** | [`docs/AGENT_STATE.md`](docs/AGENT_STATE.md) | Temporary implementation baseline, active milestones, and known blockers. |
+| **11. Backlog** | [`docs/BACKLOG.md`](docs/BACKLOG.md) | Prioritized backlog tasks across P0, P1, and P2 tiers. |
+| **12. Environment** | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | Local development setup, npm scripts, and environment variable configuration. |
+| **13. Security** | [`docs/SECURITY.md`](docs/SECURITY.md) | Security baseline, secrets handling, API key restrictions, CORS, and data privacy. |
+| **14. Testing** | [`docs/TESTING.md`](docs/TESTING.md) | Multi-tier testing strategy, verification commands, and Definition of Done. |
+| **15. Frontend Architecture** | [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md) | Directory structure, state separation, map lifecycle, and color threshold rules. |
+| **16. Bugs & Discrepancies** | [`docs/BUGS_AND_DISCREPANCIES.md`](docs/BUGS_AND_DISCREPANCIES.md) | Comprehensive defect, discrepancy, and remediation register across all subsystems. |

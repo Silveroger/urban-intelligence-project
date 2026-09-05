@@ -53,3 +53,27 @@
 - **Context:** Prototype fleet hardware may provide intermittent or uncalibrated vehicle speed readings.
 - **Decision:** Vehicle speed is treated as an optional field in telemetry models. Core map rendering, road scoring, and event markers must function completely without requiring speed values.
 - **Consequence:** Simplifies hardware integration and prevents prototype failures caused by missing speed telemetry.
+
+---
+
+## ADR-008 — PostGIS Functions in Dedicated `gis` Schema
+- **Status:** Accepted
+- **Context:** In managed Supabase PostgreSQL instances, the PostGIS extension is installed under the `gis` schema rather than `public`.
+- **Decision:** All raw spatial SQL queries, map-matching functions, and index creation statements must explicitly reference functions with the schema qualifier (e.g., `{gis_schema}.ST_DWithin`, `{gis_schema}.ST_Distance`, `{gis_schema}.ST_MakePoint`, `{gis_schema}.ST_AsGeoJSON`).
+- **Consequence:** Ensures predictable spatial query execution across local Docker, test runners, and managed cloud databases without requiring superuser alterations to global `search_path`.
+
+---
+
+## ADR-009 — Non-Destructive Schema Reconciliation
+- **Status:** Accepted
+- **Context:** The database was provisioned before canonical entity names were established, resulting in naming mismatches with contract documents. Recreating tables would wipe valuable edge calibration data.
+- **Decision:** Execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql) which adds canonical columns and foreign key constraints within a single transaction while preserving legacy UUIDs and columns as auxiliary attributes.
+- **Consequence:** Seamless transition to canonical contracts with zero data loss.
+
+---
+
+## ADR-010 — Integer Severity Storage with Display Label Aliases
+- **Status:** Accepted
+- **Context:** Perception models and edge annotators emit varying severity representations (numeric $1-4$ vs text strings like `"high"`, `"critical"`).
+- **Decision:** The database and internal scoring engines strictly store severity as `SMALLINT` ($1-4$). API responses serialize both `severity` (integer) and `severity_label` (string) for convenient frontend presentation.
+- **Consequence:** Efficient mathematical calculations in the scoring engine while maintaining readable badges on dashboard cards.

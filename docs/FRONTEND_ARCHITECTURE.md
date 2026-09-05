@@ -1,7 +1,7 @@
 # Frontend Architecture
 
 ## 1. Directory Structure
-The frontend application resides in `urban-dashboard/src/` and is organized as follows:
+The frontend application resides in `src/` and is organized as follows:
 
 ```text
 src/
@@ -105,3 +105,4 @@ The frontend maps backend `condition_score` values ($0-100$) to visual status co
 - **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`) as React `key` props. Never use array index for dynamic collections.
 - **Isolated Telemetry:** Real-time bus marker position updates must not trigger re-rendering of static road polyline layers.
 - **Memoized Calculations:** Use `useMemo` for computationally expensive filtering operations over large event datasets.
+- **Contract Compatibility:** Active interface alignments with the backend (e.g., GeoJSON format handling and incident severity display) are cataloged in [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).
