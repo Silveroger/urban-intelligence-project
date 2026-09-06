@@ -35,7 +35,7 @@
 | `VITE_GOOGLE_MAPS_API_KEY` | Yes | — | Google Maps JavaScript API key with vector map access. |
 | `VITE_GOOGLE_MAPS_MAP_ID` | Yes | — | Google Cloud Vector Map ID for 3D vector rendering & Advanced Markers. |
 | `VITE_API_BASE_URL` | Yes | `http://localhost:8000` | Base URL for FastAPI backend REST endpoints. |
-| `VITE_USE_MOCK` | Yes | `true` | When `true`, uses typed local fixtures in `src/data/` without requiring backend. |
+| `VITE_USE_MOCK` | Yes | `false` | When `false` (default for live deployment), connects to FastAPI backend and Supabase PostGIS. When `true`, uses local fixtures in `src/data/` for offline development. |
 
 ---
 
@@ -63,17 +63,37 @@
    ```bash
    cp .env.example .env
    ```
+   > [!IMPORTANT]
+   > **Supabase Regional IPv4 Session Pooler Requirement (Windows / IPv4 Networks):**
+   > Direct Supabase database hostnames (`db.<project-ref>.supabase.co`) resolve exclusively via IPv6 (AAAA) records in AWS regions. On Windows or environments without IPv6 routing, connections fail with `[Errno 11001] getaddrinfo failed`.
+   > Always use the regional IPv4 Session Pooler host in `DATABASE_URL` (e.g., `postgresql+asyncpg://postgres.[project-ref]:[PASS]@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres`).
 
-4. **Run Database Migration Script:**
-   Open the Supabase SQL Editor and execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql).
+4. **Run Database Migration and Schema Reconciliation:**
+   a. In the Supabase SQL Editor, execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql) to provision canonical tables (`routes`, `trips`) and the non-destructive compatibility view `gps_records`.
+   b. Run the legacy constraint cleanup script to safely drop superseded NOT NULL constraints while preserving historical rows:
+   ```bash
+   python scripts/drop_legacy_notnull.py
+   ```
+   c. Seed the database with OSM-derived canonical Chandigarh road network, buses, defect observations, and incidents:
+   ```bash
+   python scripts/seed_chandigarh_demo.py
+   ```
 
-5. **Start Backend Server:**
+5. **Verify Database Connectivity & Run Automated Tests:**
+   ```bash
+   python scripts/test_connection.py
+   pytest -v
+   ```
+   All 40 automated unit, API, schema, and live integration tests should pass (100%).
+
+6. **Start Backend Server:**
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
    - OpenAPI Docs: `http://localhost:8000/docs`
    - ReDoc: `http://localhost:8000/redoc`
    - Health Check: `http://localhost:8000/health`
+   - Database Health Check: `http://localhost:8000/health/database`
 
 ### Backend Environment Variables
 

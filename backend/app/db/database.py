@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from supabase import create_client, Client
 from app.core.config import settings
 
@@ -16,16 +17,22 @@ def create_db_engine():
         try:
             import asyncpg  # noqa: F401
         except ImportError:
-            logger.warning(
-                "asyncpg driver not installed in current environment; using in-memory aiosqlite for tests."
+            raise RuntimeError(
+                "CRITICAL: asyncpg driver is not installed. PostgreSQL with asyncpg and PostGIS is required."
             )
-            db_url = "sqlite+aiosqlite:///:memory:"
 
-    kwargs = {"echo": False}
-    if not db_url.startswith("sqlite"):
-        kwargs["pool_pre_ping"] = True
-        kwargs["pool_size"] = 10
-        kwargs["max_overflow"] = 20
+    kwargs = {
+        "echo": False,
+        "pool_pre_ping": True,
+        "pool_size": 10,
+        "max_overflow": 20,
+    }
+    if "asyncpg" in db_url:
+        kwargs["connect_args"] = {
+            "server_settings": {
+                "search_path": f"public, {settings.POSTGIS_SCHEMA}"
+            }
+        }
 
     return create_async_engine(db_url, **kwargs)
 
@@ -43,14 +50,19 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an async database session."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    try:
+        async with AsyncSessionLocal() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+    except (SQLAlchemyError, OSError) as e:
+        logger.error(f"Database session lifecycle error: {e}")
+        from app.core.errors import DatabaseConnectionError
+        raise DatabaseConnectionError("Database service is unavailable") from e
 
 
 # Supabase Client Singleton
@@ -116,18 +128,19 @@ async def check_database_connection() -> dict:
                 except Exception:
                     result["postgis_version"] = "unavailable"
 
-            # 3. Check for the 6 existing tables in public schema
+            # 3. Check for canonical tables and views in public schema
             tables_query = await session.execute(
                 text(
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema = 'public' "
-                    "AND table_name IN ('buses', 'gps_points', 'road_segments', 'observations', 'incidents', 'segment_history');"
+                    "AND table_name IN ('buses', 'gps_points', 'gps_records', 'road_segments', 'observations', 'incidents', 'segment_history', 'routes', 'trips');"
                 )
             )
             result["tables_found"] = [r[0] for r in tables_query.fetchall()]
 
     except Exception as e:
+        logger.error(f"Database health check error: {e}")
         result["status"] = "error"
-        result["error"] = str(e)
+        result["error"] = "Database connection failed"
 
     return result

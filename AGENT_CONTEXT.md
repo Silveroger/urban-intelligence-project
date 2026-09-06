@@ -27,23 +27,46 @@ Detailed domain specifications are strictly owned by their designated documents 
 ---
 
 ## 4. Critical Engineering Conventions & Constraints
-1. **Coordinate Format Boundary:**
+1. **Coordinate Format Boundary & Canonical Road Geometries:**
    - Spatial data interchange and storage strictly use GeoJSON `[longitude, latitude]` (EPSG:4326).
    - Google Maps JavaScript API requires `{lat, lng}` objects.
    - All transformations are isolated to `src/utils/coordinates.ts` (`geoJsonToGooglePath`). Never manually invert coordinates in ad-hoc components.
-2. **Telemetry Speed Constraint:**
+   - **OSM-Derived Canonical Road Geometries:** `public.road_segments.geom` holds authentic OpenStreetMap-derived road centerlines (`backend/data/chandigarh_roads_canonical.geojson`) containing 13 to 38 vertices per segment. Never replace these canonical geometries with coarse 2-to-4 point synthetic lines. Bus routes, GPS traces, defect observations, and traffic incidents are strictly aligned to these canonical centerlines.
+2. **PostgreSQL Connectivity & Supabase IPv4 Pooler:**
+   - On Windows or environments without native IPv6 routing, the direct Supabase database hostname (`db.<project-ref>.supabase.co`) causes immediate `[Errno 11001] getaddrinfo failed` errors due to IPv6-only AAAA DNS resolution.
+   - All database connectivity MUST use Supabase's regional IPv4 Session Pooler (e.g. `aws-0-ap-northeast-2.pooler.supabase.com:5432`).
+   - The SQLAlchemy engine strictly sets `connect_args={"server_settings": {"search_path": f"public, {settings.POSTGIS_SCHEMA}"}}` to resolve PostGIS types and functions seamlessly.
+3. **Canonical GPS Architecture (DO NOT FORK PIPELINE):**
+   - `gps_points` is the authoritative, physical source-of-truth table holding raw high-frequency telemetry.
+   - `gps_records` is a non-destructive, permanent compatibility VIEW over `gps_points` (`CREATE OR REPLACE VIEW gps_records AS SELECT * FROM gps_points;`).
+   - **CRITICAL:** Do NOT create a second competing GPS table or separate ingestion pipeline. All telemetry routes through `gps_points`, and queries against `gps_records` resolve identically without overhead.
+4. **Driver Hardening & Error Handling:**
+   - Silent SQLite fallback has been completely eliminated. `database.py` fails fast at startup if PostgreSQL or `asyncpg` is missing.
+   - All database session and query exceptions are captured and returned to clients as standard HTTP 503 `DATABASE_CONNECTION_ERROR` responses without leaking internal connection details or credentials.
+5. **Telemetry Speed Constraint:**
    - Vehicle speed is **optional** in prototype telemetry. Bus telemetry requires only `bus_id`, `timestamp`, `latitude`, `longitude`, and optional `heading_deg`.
-3. **Data Layer Abstraction:**
+6. **Data Layer Abstraction & Live Default:**
    - The UI never imports mock data directly into presentation components. All data access occurs via `src/services/api.ts` and `src/services/websocket.ts`.
-   - `VITE_USE_MOCK=true` allows full offline development and testing.
-4. **Heatmap Technology:**
+   - `VITE_USE_MOCK=false` is the default configuration connecting the React dashboard to the live FastAPI backend and Supabase PostGIS. `VITE_USE_MOCK=true` remains available for offline development.
+7. **Heatmap Technology:**
    - Google Maps native `HeatmapLayer` is deprecated. Use `@deck.gl/google-maps` and `@deck.gl/aggregation-layers` inside `DeckHeatmapOverlay.tsx`.
-5. **OCR Plate Text Caution:**
-   - Detected license plate strings must always be presented alongside their `plate_confidence` score. Never present raw OCR as absolute ground truth.
-6. **PostGIS Schema Qualification:**
-   - In Supabase, PostGIS spatial functions are located in the `gis` schema. Backend raw queries and DDL must qualify functions with `gis.` or ensure `gis` is included in the connection search path.
-7. **Database Migration Safety:**
-   - Schema modifications must be non-destructive and transactional. Use [`backend/scripts/migrate_to_documented_schema.sql`](backend/scripts/migrate_to_documented_schema.sql) to safely reconcile legacy database states.
+8. **OCR Plate Text Validation & Quarantine:**
+   - Detected license plate strings must always be accompanied by a `plate_confidence` score (422 validation error if missing).
+   - Observations with `confidence < 0.50` are automatically stored with `status = 'quarantined'`, return HTTP 201 (`quarantined: true`), and do NOT trigger road score degradation or live broadcasts.
+9. **Scoring Formula & Clean-Pass Recovery:**
+   - Defect penalties are confidence-weighted (`penalty = base_weight * freq_multiplier * confidence`).
+   - Clean passes (`clean_pass`, `clear_pass`) provide recovery credits (+5.0 condition points per verified clean pass, up to 100.0 max).
+   - Historical snapshots in `segment_history` are debounced to a 10-second window to prevent duplicate records.
+10. **Evidence Storage & Signed URLs:**
+    - Defect crop frames and incident videos are stored in Supabase Storage (`road-evidence` bucket).
+    - API endpoints dynamically generate time-limited (1-hour) signed URLs via `get_signed_evidence_url()` upon response serialization, preventing stale/expired URLs.
+11. **PostGIS Schema Qualification:**
+    - In Supabase, PostGIS spatial functions reside in the `gis` schema. Backend spatial queries and DDL qualify functions with `gis.` or rely on the engine's `search_path: public, gis`.
+12. **Database Reconciliation & Schema Stability:**
+    - Live database matches canonical entities: `buses`, `routes`, `trips`, `road_segments`, `gps_points`, `gps_records` (view), `observations`, `incidents`, `segment_history`.
+    - Legacy NOT NULL constraints have been dropped from legacy columns. All 40 backend tests pass against live PostgreSQL + PostGIS.
+13. **Real-Time WebSocket Streaming (`/ws/live`):**
+    - The live WebSocket connection streams `BUS_TELEMETRY`, `NEW_EVENT`, `NEW_INCIDENT`, and `SEGMENT_UPDATE` frames. The frontend implements auto-reconnect backoff (1s-30s) and ping/pong heartbeats to maintain continuous connectivity.
 
 ---
 

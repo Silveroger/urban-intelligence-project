@@ -68,7 +68,8 @@ async def process_bus_telemetry(
 
     # 3. Construct response and broadcast
     bus_response = BusResponse(
-        bus_id=bus.vehicle_number or str(bus.bus_id),
+        bus_id=str(bus.bus_id),
+        vehicle_number=bus.vehicle_number,
         latitude=telemetry.latitude,
         longitude=telemetry.longitude,
         heading_deg=telemetry.heading_deg,

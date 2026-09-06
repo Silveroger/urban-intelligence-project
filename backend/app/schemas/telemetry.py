@@ -23,6 +23,7 @@ class BusResponse(BaseModel):
     heading_deg: Optional[float] = None
     timestamp: str
     status: Optional[str] = "active"
+    vehicle_number: Optional[str] = None
 
 
 class LiveBusTelemetryFrame(BaseModel):

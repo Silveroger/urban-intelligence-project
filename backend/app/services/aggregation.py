@@ -6,6 +6,9 @@ from app.models.road_segment import RoadSegment
 from app.models.observation import Observation
 from app.models.segment_history import SegmentHistory
 from app.services.scoring import calculate_road_health
+from app.websocket.manager import ws_manager
+from app.schemas.observations import LiveSegmentUpdateFrame, SegmentUpdatePayload
+from app.utils.timestamps import ensure_iso_timestamp
 
 
 async def recalculate_segment_metrics(
@@ -60,7 +63,7 @@ async def recalculate_segment_metrics(
         })
 
     # 3. Calculate health score and condition
-    new_health_score, new_condition = calculate_road_health(obs_dicts)
+    new_health_score, new_condition = calculate_road_health(obs_dicts, weight_by_confidence=True)
     total_observations = len(observations)
     now_utc = datetime.now(timezone.utc)
 
@@ -76,18 +79,57 @@ async def recalculate_segment_metrics(
         segment.waterlogging_count = waterlogging_count
         segment.last_updated = latest_observed_at or now_utc
 
-        # 5. Insert history record
-        history_record = SegmentHistory(
-            segment_id=seg_id_str,
-            condition_score=new_health_score,
-            confidence=segment.confidence or 1.00,
-            pothole_count=pothole_count,
-            waterlogging_count=waterlogging_count,
-            bus_id=str(bus_id) if bus_id else None,
-            recorded_at=now_utc,
+        # 5. Debounced history snapshot insertion (BUG-006)
+        hist_stmt = (
+            select(SegmentHistory)
+            .where(SegmentHistory.segment_id == seg_id_str)
+            .order_by(desc(SegmentHistory.recorded_at))
+            .limit(1)
         )
-        db.add(history_record)
+        hist_res = await db.execute(hist_stmt)
+        latest_hist = hist_res.scalar_one_or_none()
+
+        should_insert = True
+        if latest_hist and latest_hist.recorded_at:
+            rec_dt = latest_hist.recorded_at
+            if rec_dt.tzinfo is None:
+                rec_dt = rec_dt.replace(tzinfo=timezone.utc)
+            if (now_utc - rec_dt).total_seconds() < 10.0:
+                should_insert = False
+                latest_hist.condition_score = new_health_score
+                latest_hist.pothole_count = pothole_count
+                latest_hist.waterlogging_count = waterlogging_count
+                latest_hist.confidence = segment.confidence or 1.00
+                if bus_id:
+                    latest_hist.bus_id = str(bus_id)
+                latest_hist.recorded_at = now_utc
+
+        if should_insert:
+            history_record = SegmentHistory(
+                segment_id=seg_id_str,
+                condition_score=new_health_score,
+                confidence=segment.confidence or 1.00,
+                pothole_count=pothole_count,
+                waterlogging_count=waterlogging_count,
+                bus_id=str(bus_id) if bus_id else None,
+                recorded_at=now_utc,
+            )
+            db.add(history_record)
+
         await db.commit()
         await db.refresh(segment)
+
+        # 6. Broadcast segment update (BUG-017)
+        frame = LiveSegmentUpdateFrame(
+            payload=SegmentUpdatePayload(
+                segment_id=segment.segment_id,
+                condition_score=float(segment.condition_score) if segment.condition_score is not None else None,
+                pothole_count=segment.pothole_count or 0,
+                waterlogging_count=segment.waterlogging_count or 0,
+                observation_count=segment.observation_count or 0,
+                last_updated=ensure_iso_timestamp(segment.last_updated),
+            )
+        )
+        await ws_manager.broadcast(frame.model_dump())
 
     return segment

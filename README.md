@@ -36,8 +36,10 @@ source .venv/bin/activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Copy environment file
+# 3. Copy environment file and configure Supabase Session Pooler
 cp .env.example .env
+# Ensure DATABASE_URL uses the Supabase IPv4 Regional Session Pooler (port 5432 or 6543)
+# e.g.: postgresql+asyncpg://postgres:[PASSWORD]@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
 
 # 4. Start local backend server
 uvicorn app.main:app --reload --port 8000
@@ -46,6 +48,7 @@ uvicorn app.main:app --reload --port 8000
 - API Documentation (Swagger): `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 - System Health: `http://localhost:8000/health`
+- Database & PostGIS Health: `http://localhost:8000/health/database`
 
 ---
 
@@ -81,6 +84,9 @@ All project documentation follows a single-owner authoritative hierarchy:
 - `npm run preview`: Preview production build locally.
 
 ### Backend Scripts (inside `backend/`)
-- `pytest`: Run complete test suite (scoring, severity, coordinates, api routes, websocket).
-- `python scripts/test_connection.py`: Test PostGIS connectivity, schema, and table availability.
-- `python scripts/test_ingestion.py`: Simulate live edge AI observation ingestion pipeline.
+- `pytest -v`: Run complete test suite (40/40 tests passing, 100% pass rate, including live PostgreSQL 17.6 + PostGIS 3.3.7 integration tests).
+- `python scripts/test_connection.py`: Test PostGIS connectivity in `gis` schema, verify all 9 canonical entities/views, and check storage bucket.
+- `python scripts/test_ingestion.py`: Execute 6-stage end-to-end edge AI observation ingestion simulation.
+- `python scripts/seed_chandigarh_demo.py`: Seed database with OSM-derived canonical Chandigarh road network (`chandigarh_roads_canonical.geojson`), buses, events, and incidents.
+- `python scripts/simulate_chandigarh_buses.py`: Simulate live fleet buses traveling along canonical road corridors and streaming GPS coordinates to `/api/v1/telemetry`.
+- `python scripts/drop_legacy_notnull.py`: Idempotently drop superseded legacy NOT NULL constraints across database tables.

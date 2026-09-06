@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.models.incident import Incident
 from app.schemas.incidents import IncidentResponse, IncidentCreate
 from app.services.incidents import create_incident
+from app.services.evidence import get_signed_evidence_url
 from app.utils.severity import severity_to_int, severity_to_text
 from app.utils.timestamps import ensure_iso_timestamp
 from app.utils.coordinates import point_to_geojson_coords
@@ -43,6 +44,7 @@ async def get_incidents(
                 incident_type=inc.incident_type,
                 severity=sev_num,
                 severity_label=sev_label,
+                incident_score=round(sev_num * 25.0, 1),
                 vehicle_track_id=inc.vehicle_track_id,
                 plate_text=inc.plate_text,
                 plate_confidence=float(inc.plate_confidence) if inc.plate_confidence is not None else None,
@@ -51,7 +53,7 @@ async def get_incidents(
                 timestamp=ensure_iso_timestamp(inc.recorded_at),
                 road_segment_id=str(inc.road_segment_id) if inc.road_segment_id else None,
                 observation_id=str(inc.observation_id) if inc.observation_id else None,
-                evidence_uri=inc.evidence_uri,
+                evidence_uri=get_signed_evidence_url(inc.evidence_uri) or inc.evidence_uri,
                 description=inc.description,
                 status=inc.status or "open",
             )

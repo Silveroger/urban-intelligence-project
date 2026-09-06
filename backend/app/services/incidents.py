@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from geoalchemy2.elements import WKTElement
 from app.models.incident import Incident
 from app.schemas.incidents import IncidentCreate, IncidentResponse
+from app.schemas.observations import LiveIncidentFrame
 from app.services.map_matching import find_nearest_road_segment
+from app.services.evidence import get_signed_evidence_url
+from app.websocket.manager import ws_manager
 from app.utils.severity import severity_to_int, severity_to_text
 from app.utils.timestamps import ensure_iso_timestamp
 
@@ -54,11 +57,14 @@ async def create_incident(
     await db.commit()
     await db.refresh(incident)
 
-    return IncidentResponse(
+    signed_evidence = get_signed_evidence_url(incident.evidence_uri) or incident.evidence_uri
+
+    resp = IncidentResponse(
         incident_id=incident.incident_id,
         incident_type=incident.incident_type,
         severity=sev_num,
         severity_label=sev_label,
+        incident_score=round(sev_num * 25.0, 1),
         vehicle_track_id=incident.vehicle_track_id,
         plate_text=incident.plate_text,
         plate_confidence=float(incident.plate_confidence) if incident.plate_confidence is not None else None,
@@ -67,7 +73,12 @@ async def create_incident(
         timestamp=ensure_iso_timestamp(incident.recorded_at),
         road_segment_id=str(incident.road_segment_id) if incident.road_segment_id else None,
         observation_id=str(incident.observation_id) if incident.observation_id else None,
-        evidence_uri=incident.evidence_uri,
+        evidence_uri=signed_evidence,
         description=incident.description,
         status=incident.status,
     )
+
+    frame = LiveIncidentFrame(payload=resp)
+    await ws_manager.broadcast(frame.model_dump())
+
+    return resp

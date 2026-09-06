@@ -49,3 +49,25 @@ def test_calculate_road_health_condition_thresholds():
     score, condition = calculate_road_health(severe_obs)
     assert score < 40.0
     assert condition == "critical"
+
+
+def test_calculate_road_health_confidence_weighting():
+    # Base penalty for severity 1 is 2.0
+    # With confidence 0.50 and weight_by_confidence=True -> penalty = 2.0 * 0.50 = 1.0 -> score = 99.0
+    obs = [{"observation_type": "road_defect", "severity": 1, "confidence": 0.50}]
+    score, condition = calculate_road_health(obs, weight_by_confidence=True)
+    assert score == 99.0
+    assert condition == "good"
+
+
+def test_calculate_road_health_clean_pass_recovery():
+    # Defect with penalty 20 -> score 80
+    # Followed by 2 clean passes (+5 each = +10) -> score 90
+    obs = [
+        {"observation_type": "road_defect", "severity": 4, "confidence": 1.0},
+        {"observation_type": "clean_pass"},
+        {"observation_type": "clean_pass"},
+    ]
+    score, condition = calculate_road_health(obs)
+    assert score == 90.0
+    assert condition == "good"

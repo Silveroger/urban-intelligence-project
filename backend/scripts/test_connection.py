@@ -72,7 +72,7 @@ async def run_diagnostics():
 
     # 4. Table Verification
     print("\n[4/5] Checking Schema Tables:")
-    expected_tables = ["buses", "gps_points", "road_segments", "observations", "incidents", "segment_history"]
+    expected_tables = ["buses", "gps_points", "road_segments", "observations", "incidents", "segment_history", "routes", "trips", "gps_records"]
     if db_connected:
         try:
             async with AsyncSessionLocal() as session:
@@ -85,9 +85,9 @@ async def run_diagnostics():
                 found_tables = [r[0] for r in res.fetchall()]
                 for tbl in expected_tables:
                     if tbl in found_tables:
-                        print(f"  [+] Found table: {tbl}")
+                        print(f"  [+] Found table/view: {tbl}")
                     else:
-                        print(f"  [-] MISSING table: {tbl}")
+                        print(f"  [-] MISSING table/view: {tbl}")
 
                 # Check test seed data
                 if "buses" in found_tables:
@@ -96,7 +96,11 @@ async def run_diagnostics():
                     print(f"      Fleet buses in DB: {buses}")
 
                 if "road_segments" in found_tables:
-                    seg_res = await session.execute(text("SELECT road_name FROM road_segments LIMIT 5;"))
+                    try:
+                        seg_res = await session.execute(text("SELECT COALESCE(name, road_name) FROM road_segments LIMIT 5;"))
+                    except Exception:
+                        await session.rollback()
+                        seg_res = await session.execute(text("SELECT road_name FROM road_segments LIMIT 5;"))
                     segs = [s[0] for s in seg_res.fetchall()]
                     print(f"      Road segments in DB: {segs}")
         except Exception as e:

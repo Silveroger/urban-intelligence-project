@@ -43,6 +43,28 @@ class ObservationIngestResult(BaseModel):
     message: str
 
 
+from app.schemas.incidents import IncidentResponse
+
+
 class LiveEventFrame(BaseModel):
     type: str = "NEW_EVENT"
     payload: EventResponse
+
+
+class LiveIncidentFrame(BaseModel):
+    type: str = "NEW_INCIDENT"
+    payload: IncidentResponse
+
+
+class SegmentUpdatePayload(BaseModel):
+    segment_id: str
+    condition_score: Optional[float] = None
+    pothole_count: int = 0
+    waterlogging_count: int = 0
+    observation_count: int = 0
+    last_updated: Optional[str] = None
+
+
+class LiveSegmentUpdateFrame(BaseModel):
+    type: str = "SEGMENT_UPDATE"
+    payload: SegmentUpdatePayload

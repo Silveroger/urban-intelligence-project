@@ -22,20 +22,30 @@ A total of **14 issues** have been identified and cataloged below:
 
 | ID | Title | Subsystems | Severity | Impact | Status |
 |---|---|---|---|---|---|
-| **BUG-001** | `GET /api/v1/segments/geojson` Response Shape Mismatch | Frontend / Backend | **CRITICAL** | Frontend runtime crash (`segments.map is not a function`) when live backend is enabled | Open |
-| **BUG-002** | Incident Metric Discrepancy: `incident_score` vs `severity` | Frontend / Backend / Contracts | **CRITICAL** | Data loss / undefined display in Incident Inspector | Open |
-| **BUG-003** | Database Schema Dual-State / Column Naming Discrepancy | Backend / Database | **CRITICAL** | All backend SQL queries fail if `migrate_to_documented_schema.sql` has not been executed | Open |
-| **BUG-004** | Frontend WebSocket Client Disconnected from UI State | Frontend / WebSocket | **HIGH** | Real-time bus telemetry and new event markers are completely ignored by the UI | Open |
-| **BUG-005** | Map-Matching PostGIS Fallback Query Schema Qualification Flaw | Backend Service | **HIGH** | Fallback map-matching query fails if PostGIS functions are strictly isolated in `gis` schema | Open |
-| **BUG-006** | Segment History Multi-Insert Duplication on Bulk Ingestion | Backend Ingestion / DB | **HIGH** | `segment_history` is flooded with duplicate snapshots per defect instead of per pass | Open |
-| **BUG-007** | Evidence Signed URL Expiration Causes Broken Media in UI | Backend Storage / Frontend | **HIGH** | Defect and incident evidence images stop loading after 1 hour (3600s) | Open |
-| **BUG-008** | Segment ID Formatting Inconsistency (Hyphen vs Underscore) | Frontend Mock / Backend DB | **MEDIUM** | Filter and inspector lookups fail when mixing mock and live identifiers | Open |
-| **BUG-009** | SQLite In-Memory Database Fallback Incompatible with PostGIS | Backend Database | **MEDIUM** | In-memory fallback crashes immediately on spatial queries (`ST_AsGeoJSON`, `ST_DWithin`) | Open |
-| **BUG-010** | Missing WebSocket Auto-Reconnection & Backoff in Frontend | Frontend WebSocket | **MEDIUM** | Dropped WebSocket connections are permanently abandoned until hard refresh | Open |
-| **BUG-011** | Contradictory Database Migration Instructions in Documentation | Backend README / Docs | **MEDIUM** | Developers running `migrate_schema.sql` instead of `migrate_to_documented_schema.sql` break backend | Open |
+| **BUG-001** | `GET /api/v1/segments/geojson` Response Shape Mismatch | Frontend / Backend | **CRITICAL** | Frontend runtime crash (`segments.map is not a function`) when live backend is enabled | **RESOLVED** (`api.ts` parses GeoJSON `FeatureCollection` & flat formats) |
+| **BUG-002** | Incident Metric Discrepancy: `incident_score` vs `severity` | Frontend / Backend / Contracts | **CRITICAL** | Data loss / undefined display in Incident Inspector | **RESOLVED** (Schemas & UI support `severity` 1-4, `severity_label`, and `incident_score`) |
+| **BUG-003** | Database Schema Dual-State / Column Naming Discrepancy | Backend / Database | **CRITICAL** | All backend SQL queries fail if canonical columns are absent | **RESOLVED** (`migrate_to_documented_schema.sql` applied) |
+| **BUG-004** | Frontend WebSocket Client Disconnected from UI State | Frontend / WebSocket | **HIGH** | Real-time bus telemetry and new event markers are completely ignored by the UI | **RESOLVED** (`Dashboard.tsx` connected to `websocket.ts` live frames) |
+| **BUG-005** | Map-Matching PostGIS Fallback Query Schema Qualification Flaw | Backend Service | **HIGH** | Fallback map-matching query fails if PostGIS functions are isolated in `gis` schema | **RESOLVED** (`gis.` qualification & engine `search_path`) |
+| **BUG-006** | Segment History Multi-Insert Duplication on Bulk Ingestion | Backend Ingestion / DB | **HIGH** | `segment_history` is flooded with duplicate snapshots per defect instead of per pass | **RESOLVED** (10s debouncing window implemented) |
+| **BUG-007** | Evidence Signed URL Expiration Causes Broken Media in UI | Backend Storage / Frontend | **HIGH** | Defect and incident evidence images stop loading after 1 hour (3600s) | **RESOLVED** (Dynamic signed URLs on serialization) |
+| **BUG-008** | Segment ID Formatting Inconsistency (Hyphen vs Underscore) | Frontend Mock / Backend DB | **MEDIUM** | Filter and inspector lookups fail when mixing mock and live identifiers | **RESOLVED** (Standardized `seg_chandigarh_xxx` across database, mock data, and APIs) |
+| **BUG-009** | SQLite In-Memory Database Fallback Incompatible with PostGIS | Backend Database | **MEDIUM** | In-memory fallback crashes immediately on spatial queries (`ST_AsGeoJSON`, `ST_DWithin`) | **RESOLVED** (SQLite fallback removed, HTTP 503 gateway) |
+| **BUG-010** | Missing WebSocket Auto-Reconnection & Backoff in Frontend | Frontend WebSocket | **MEDIUM** | Dropped WebSocket connections are permanently abandoned until hard refresh | **RESOLVED** (Exponential backoff 1s-30s & ping/pong heartbeats in `websocket.ts`) |
+| **BUG-011** | Contradictory Database Migration Instructions in Documentation | Backend README / Docs | **MEDIUM** | Developers running `migrate_schema.sql` instead of canonical migration break backend | **RESOLVED** (Docs synchronized to canonical script) |
 | **BUG-012** | Event Query Parameter Type Coercion (`min_severity`) | Backend API / Frontend | **MEDIUM** | Potential 422 Unprocessable Entity if non-integer severity or text severity is queried | Open |
-| **BUG-013** | Hardcoded Absolute Machine File Links in Project Documentation | Documentation | **LOW** | Broken documentation links across external developer machines | Open |
-| **BUG-014** | Missing Automated Integration Tests for Live API Hydration | Testing Suite | **LOW** | No end-to-end CI test verifying frontend parsing of live backend payloads | Open |
+| **BUG-013** | Hardcoded Absolute Machine File Links in Project Documentation | Documentation | **LOW** | Broken documentation links across external developer machines | **RESOLVED** (Converted to standard relative links) |
+| **BUG-014** | Missing Automated Integration Tests for Live API Hydration | Testing Suite | **LOW** | No end-to-end CI test verifying frontend parsing of live backend payloads | **RESOLVED** (6 real integration tests + 6-stage simulation) |
+| **BUG-015** | Supabase Direct Hostname IPv6 Resolution Failure on Windows | Backend Infrastructure | **CRITICAL** | `[Errno 11001] getaddrinfo failed` prevents database connection on Windows | **RESOLVED** (Switched to regional IPv4 Session Pooler) |
+| **BUG-016** | Missing WebSocket Live Broadcast on Incident Creation | Backend API / WebSocket | **HIGH** | Real-time traffic violations and obstructions not streamed to connected clients | **RESOLVED** (Broadcasts `NEW_INCIDENT` on commit) |
+| **BUG-017** | Missing WebSocket Live Broadcast on Segment Recalculation | Backend Service / WebSocket | **HIGH** | Road condition degradation color updates delayed until client page refresh | **RESOLVED** (Broadcasts `SEGMENT_UPDATE` on metrics update) |
+| **BUG-018** | In-Memory Pagination Slicing Flaw for Defect Events Query | Backend API | **HIGH** | `events.py` paginated before filtering severity, returning empty slices | **RESOLVED** (Filters `min_severity` directly in SQL) |
+| **BUG-019** | Fleet Bus Telemetry Missing Heading Outer-Join | Backend API / Models | **MEDIUM** | `buses.py` returned null headings when buses had active GPS points | **RESOLVED** (Window partition outer-join on `gps_points`) |
+| **BUG-020** | `gps_points` vs `gps_records` Schema & Pipeline Inconsistency | Backend / Database | **HIGH** | Risk of splitting telemetry ingestion into dual competing pipelines | **RESOLVED** (`gps_points` source-of-truth + `gps_records` view) |
+| **BUG-021** | Superseded Legacy NOT NULL Constraints Blocking Canonical Inserts | Backend Database | **CRITICAL** | Legacy NOT NULL columns rejected canonical ORM inserts | **RESOLVED** (`scripts/drop_legacy_notnull.py` executed) |
+| **BUG-022** | Diagnostic Credential Leakage in Database Error Responses | Backend Security | **HIGH** | Uncaught database connection errors could expose internal connection strings | **RESOLVED** (Sanitized HTTP 503 gateway in `errors.py`) |
+| **BUG-023** | Unweighted Defect Scoring and Missing Clean-Pass Recovery | Backend Service | **MEDIUM** | Defect penalties ignored model confidence and lacked road recovery mechanism | **RESOLVED** (Confidence-weighted penalties + clean-pass recovery) |
+| **BUG-024** | Coarse Synthetic Road Geometries Cutting Across Chandigarh Grid | Frontend / Database | **HIGH** | Road lines cut straight across sectors on Google Maps base layer | **RESOLVED** (OSM-derived canonical road geometries in `backend/data/chandigarh_roads_canonical.geojson`, loaded into PostGIS `road_segments.geom`) |
 
 ---
 
@@ -355,24 +365,54 @@ A total of **14 issues** have been identified and cataloged below:
 
 ---
 
+### BUG-024: Coarse Synthetic Road Geometries Cutting Across Chandigarh Grid
+
+- **Severity:** `HIGH`
+- **Affected Files:**
+  - `backend/scripts/seed_chandigarh_demo.py`
+  - `backend/data/chandigarh_roads_canonical.geojson`
+  - `src/data/mockRoadSegments.ts`
+  - `public.road_segments.geom` (PostgreSQL / PostGIS)
+- **Problem Description:**  
+  Visual inspection of the live React dashboard revealed that colored road polylines displayed on the Google Maps vector basemap were cutting straight across sectors as crude 2-to-4 point diagonal lines rather than following actual street centerlines. The underlying root cause was **coarse synthetic data**: the initial seed script and mock dataset generated rudimentary endpoints without real-world street curvature or vertices.
+- **Remediation:**  
+  1. Extracted authentic OpenStreetMap (OSM) highway ways for Chandigarh's major arterial corridors (Jan Marg, Madhya Marg, Dakshin Marg, Purv Marg, Vigyan Marg, Sarovar Path, Himalaya Marg, Sukhna Path, Udyog Path, Vidya Path).
+  2. Built canonical GeoJSON dataset [`backend/data/chandigarh_roads_canonical.geojson`](../backend/data/chandigarh_roads_canonical.geojson) containing 13 to 38 vertices per segment in WGS84 EPSG:4326.
+  3. Seeded PostGIS `public.road_segments.geom` with the canonical geometries.
+  4. Aligned fleet bus simulation paths (`simulate_chandigarh_buses.py`), defect observations, and traffic incidents directly onto the canonical coordinates ($0.00\,\text{m}$ offset).
+  5. Verified visual alignment against Google Maps vector basemap tiles.
+- **Status:** **RESOLVED** (Commit on `backend-recovery`).
+
+---
+
 ## 4. Prioritized Action Matrix
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Phase 1: Immediate Critical Fixes (Pre-requisite for Live Demo)         │
-│  [x] Document all bugs & discrepancies in BUGS_AND_DISCREPANCIES.md     │
-│  [ ] Update src/services/api.ts to handle FeatureCollection & flat fmt │
-│  [ ] Add severity/severity_label to src/types/incidents.ts             │
-│  [ ] Execute backend/scripts/migrate_to_documented_schema.sql on DB   │
+│ Phase 1: Backend Recovery & Database Reconciliation (COMPLETED 100%)   │
+│  [x] Route PostgreSQL connection via Supabase Regional IPv4 Pooler     │
+│  [x] Execute backend/scripts/migrate_to_documented_schema.sql on DB   │
+│  [x] Drop legacy NOT NULL constraints via drop_legacy_notnull.py       │
+│  [x] Reconcile 9 canonical entities & gps_records compatibility view   │
+│  [x] Eliminate SQLite fallback & implement HTTP 503 database gateway   │
+│  [x] Add confidence-weighted scoring & clean-pass recovery credits     │
+│  [x] Implement 10s history debouncing & WebSocket broadcasts           │
+│  [x] Implement dynamic 1-hour signed URLs for Supabase Storage evidence│
+│  [x] Validate 40/40 tests passing (100%) including live integration    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Phase 2: Live Streaming & Resilience                                   │
-│  [ ] Connect frontend WebSocket listener in Dashboard.tsx              │
-│  [ ] Add auto-reconnect backoff to src/services/websocket.ts           │
-│  [ ] Add debouncing to segment_history generation in aggregation.py    │
+│ Phase 2: Synthetic Data & Frontend Integration (COMPLETED 100%)        │
+│  [x] Generate realistic Chandigarh road corridors & GPS telemetry     │
+│  [x] Update src/services/api.ts to handle FeatureCollection & flat fmt │
+│  [x] Add severity/severity_label to src/types/incidents.ts             │
+│  [x] Connect frontend WebSocket listener in Dashboard.tsx              │
+│  [x] Add auto-reconnect backoff & ping heartbeat to websocket.ts       │
+│  [x] Resolve BUG-024: OSM-derived canonical geometries in PostGIS & UI │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Phase 3: Documentation & Contract Synchronization                       │
-│  [x] Eliminate all hardcoded machine URI links in docs/                │
-│  [x] Synchronize API_CONTRACT.md, AI_CONTRACT.md, and DATABASE_SCHEMA   │
-│  [x] Update AGENT_CONTEXT.md and AGENT_STATE.md                        │
+│ Phase 3: Documentation & Remote Branch Promotion (COMPLETED 100%)      │
+│  [x] Synchronize AGENT_CONTEXT.md, README.md, and backend/README.md   │
+│  [x] Synchronize API_CONTRACT.md, DATABASE_SCHEMA.md, ARCHITECTURE.md  │
+│  [x] Synchronize TESTING.md, DECISIONS.md, AGENT_STATE.md, BACKLOG.md │
+│  [x] Synchronize FRONTEND_ARCHITECTURE.md, BUGS_AND_DISCREPANCIES.md   │
+│  [x] Push validated backend-recovery HEAD to origin/Backend            │
 └────────────────────────────────────────────────────────────────────────┘
 ```

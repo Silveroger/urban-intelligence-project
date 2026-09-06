@@ -31,6 +31,7 @@ def mock_db_session():
                 datetime.now(timezone.utc),
             )
             mock_result.fetchall.return_value = [sample_row]
+            mock_result.all.return_value = [(85.5,)]
             mock_result.scalar_one_or_none.return_value = None
             return mock_result
 
@@ -44,6 +45,7 @@ def mock_db_session():
                 last_ping=datetime.now(timezone.utc),
             )
             mock_result.scalars.return_value.all.return_value = [mock_bus]
+            mock_result.all.return_value = [(mock_bus, 90.0)]
             return mock_result
 
         elif "observations" in stmt_str:
@@ -76,11 +78,14 @@ def mock_db_session():
                 recorded_at=datetime.now(timezone.utc),
             )
             mock_result.scalars.return_value.all.return_value = [mock_inc]
+            mock_result.scalar.return_value = 1
             return mock_result
 
         mock_result.fetchall.return_value = []
         mock_result.scalars.return_value.all.return_value = []
         mock_result.scalar_one_or_none.return_value = None
+        mock_result.scalar.return_value = 1
+        mock_result.all.return_value = [(85.5,)]
         return mock_result
 
     mock_session.execute.side_effect = mock_execute
@@ -163,7 +168,9 @@ async def test_get_buses(async_client: AsyncClient, mock_db_session):
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["bus_id"] == "TEST-BUS-001"
+        assert data[0]["bus_id"] == "420c49b0-8442-4175-b5b8-424bf2d7fcc8"
+        assert data[0]["vehicle_number"] == "TEST-BUS-001"
+        assert data[0]["heading_deg"] == 90.0
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -185,3 +192,20 @@ async def test_post_observation_ocr_missing_confidence(async_client: AsyncClient
     error_data = response.json()
     assert "error" in error_data
     assert error_data["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_get_analytics_summary(async_client: AsyncClient, mock_db_session):
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+    try:
+        response = await async_client.get("/api/v1/analytics/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_segments" in data
+        assert "average_condition_score" in data
+        assert "active_buses_count" in data
+        assert "condition_distribution" in data
+        assert data["total_segments"] >= 1
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+

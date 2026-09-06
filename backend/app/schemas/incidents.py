@@ -7,6 +7,7 @@ class IncidentResponse(BaseModel):
     incident_type: str
     severity: int = Field(default=1, ge=1, le=4, description="Numeric severity: 1 to 4")
     severity_label: Optional[str] = Field(default=None, description="Optional descriptive severity label: low, moderate, high, critical")
+    incident_score: Optional[float] = Field(default=None, description="Normalized score 0-100 derived from severity")
     vehicle_track_id: Optional[str] = None
     plate_text: Optional[str] = None
     plate_confidence: Optional[float] = None

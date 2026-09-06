@@ -7,12 +7,15 @@ from app.core.config import settings
 from app.core.security import setup_cors
 from app.core.errors import (
     BaseAPIException,
+    DatabaseConnectionError,
     custom_api_exception_handler,
     validation_exception_handler,
     http_exception_handler,
+    database_exception_handler,
     unhandled_exception_handler,
     get_current_iso_timestamp,
 )
+from sqlalchemy.exc import SQLAlchemyError
 from app.db.database import engine, check_database_connection
 from app.api.v1 import api_v1_router
 from app.websocket.live import router as websocket_router
@@ -47,6 +50,7 @@ setup_cors(app)
 
 # 2. Register Custom Exception Handlers (contract-compliant errors)
 app.add_exception_handler(BaseAPIException, custom_api_exception_handler)
+app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)

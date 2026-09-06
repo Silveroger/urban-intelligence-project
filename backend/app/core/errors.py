@@ -113,8 +113,27 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     )
 
 
+async def database_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Formats database exceptions into the standard HTTP 503 API error contract."""
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": {
+                "code": "DATABASE_CONNECTION_ERROR",
+                "message": "Database service is temporarily unavailable.",
+                "timestamp": get_current_iso_timestamp(),
+            }
+        },
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Formats generic unhandled server exceptions safely without leaking internal secrets."""
+    # If the unhandled exception was caused by a database dropout or network failure, map to 503
+    exc_name = type(exc).__name__
+    if "Database" in exc_name or "Connection" in exc_name or "OperationalError" in exc_name or "InterfaceError" in exc_name:
+        return await database_exception_handler(request, exc)
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

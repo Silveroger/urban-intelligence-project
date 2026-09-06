@@ -57,11 +57,11 @@ async def get_road_segments_geojson(
         res = await db.execute(query)
         rows = res.fetchall()
     except Exception:
-        fallback_query = text("""
+        fallback_query = text(f"""
             SELECT 
                 segment_id,
                 name,
-                ST_AsGeoJSON(geom) AS geojson_geom,
+                {gis_schema}.ST_AsGeoJSON(geom) AS geojson_geom,
                 condition_score,
                 confidence,
                 pothole_count,

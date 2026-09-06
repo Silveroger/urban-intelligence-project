@@ -46,20 +46,26 @@ To maintain responsiveness and prevent unnecessary re-renders, the frontend isol
 ---
 
 ## 3. Data Flow & Provider Layer
-The UI never imports mock data directly into presentation components. All data requests flow through the service layer:
+The UI never imports mock data directly into presentation components. All data requests flow through the service layer, with real-time deltas streamed over WebSockets:
 
 ```text
 ┌──────────────────────────────┐
-│  Mock Data (src/data/)       │ ──┐
+│  Mock Data (src/data/)       │ ──┐ (Fallback if VITE_USE_MOCK=true)
 └──────────────────────────────┘   │
                                    ▼
 ┌──────────────────────────────┐ ┌───────────────────────────┐
 │  Live REST API               │─►│  src/services/api.ts      │
-└──────────────────────────────┘  │  (VITE_USE_MOCK Switch)   │
-                                  └─────────────┬─────────────┘
-                                                │ Typed Models
+│  (Supabase + PostGIS via     │  │  (VITE_USE_MOCK=false)    │
+│   FastAPI Endpoints)         │  └─────────────┬─────────────┘
+└──────────────────────────────┘                │ Typed Models
                                                 ▼
-                                  ┌───────────────────────────┐
+┌──────────────────────────────┐ ┌───────────────────────────┐
+│  WebSocket (/ws/live)        │─►│  src/services/websocket.ts│
+│  - BUS_TELEMETRY             │  │  (Auto-reconnect & PING)  │
+│  - NEW_EVENT                 │  └─────────────┬─────────────┘
+│  - NEW_INCIDENT              │                │ Real-Time Deltas
+│  - SEGMENT_UPDATE            │                ▼
+└──────────────────────────────┘  ┌───────────────────────────┐
                                   │  Dashboard Page / State   │
                                   └─────────────┬─────────────┘
                                                 │ Props
@@ -68,6 +74,8 @@ The UI never imports mock data directly into presentation components. All data r
                                   │  Map, Cards, Inspectors   │
                                   └───────────────────────────┘
 ```
+
+The live dashboard runs by default with **`VITE_USE_MOCK=false`**, hydrating all initial city infrastructure state from FastAPI endpoints and reacting immediately to live streaming frames.
 
 ---
 
@@ -78,7 +86,7 @@ The UI never imports mock data directly into presentation components. All data r
 
 ---
 
-## 5. Coordinate Transformation Standard
+## 5. Coordinate Transformation Standard & Canonical Road Rendering
 All incoming and internal coordinates conform to GeoJSON `[longitude, latitude]`. The sole transformation to Google Maps `{lat, lng}` is performed by the canonical utility in `src/utils/coordinates.ts`:
 
 ```ts
@@ -86,6 +94,11 @@ export function geoJsonToGooglePath(coords: [number, number][]): { lat: number; 
   return coords.map(([lng, lat]) => ({ lat, lng }));
 }
 ```
+
+### Canonical Road Geometries on Vector Map
+- **Authentic Road Curvature:** Road segment centerlines are OpenStreetMap-derived canonical geometries (`backend/data/chandigarh_roads_canonical.geojson`), containing 13 to 38 vertices per segment.
+- **Visual Alignment:** Rendered as Google Maps `Polyline` vectors that accurately follow genuine physical streets across Chandigarh sectors (Jan Marg, Madhya Marg, Dakshin Marg, etc.), eliminating earlier straight synthetic shortcuts.
+- **Payload Flexibility:** `fetchSegments()` in `src/services/api.ts` transparently normalizes both GeoJSON `FeatureCollection` and flat array formats.
 
 ---
 
@@ -101,8 +114,11 @@ The frontend maps backend `condition_score` values ($0-100$) to visual status co
 
 ---
 
-## 7. Performance & Rendering Guidelines
-- **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`) as React `key` props. Never use array index for dynamic collections.
-- **Isolated Telemetry:** Real-time bus marker position updates must not trigger re-rendering of static road polyline layers.
+## 7. Performance & Error Handling Guidelines
+- **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`, `incident_id`) as React `key` props. Never use array index for dynamic collections.
+- **Isolated Telemetry:** Real-time bus marker position updates (`BUS_TELEMETRY`) update the bus state array and marker coordinates without triggering re-rendering of static road polyline layers.
+- **Real-Time Map & Incident Sync:** When `SEGMENT_UPDATE` frames arrive, update the matching segment's `condition_score` and defect counts in place, instantly updating polyline color tiers. When `NEW_INCIDENT` frames arrive, prepend to active incidents and increment badge counts without full-page reloads.
+- **WebSocket Reconnection & Heartbeats:** `src/services/websocket.ts` implements exponential backoff reconnection (1s, 2s, 5s, 10s, max 30s) and 30-second ping/pong heartbeats, ensuring persistent streaming through network blips or server restarts.
+- **HTTP 503 Database Error Gateway:** The backend catches all database drops and emits standardized HTTP 503 `DATABASE_CONNECTION_ERROR`. The frontend Axios interceptor surfaces a non-blocking toast alert rather than failing uncaught.
 - **Memoized Calculations:** Use `useMemo` for computationally expensive filtering operations over large event datasets.
-- **Contract Compatibility:** Active interface alignments with the backend (e.g., GeoJSON format handling and incident severity display) are cataloged in [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).
+- **Contract Compatibility:** All critical integration discrepancies (BUG-001 GeoJSON format, BUG-002 severity metric, BUG-004 WebSocket hookup, BUG-008 ID formatting, BUG-010 reconnect backoff, BUG-024 canonical road geometries) are verified resolved. See [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).

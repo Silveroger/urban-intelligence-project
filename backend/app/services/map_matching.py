@@ -28,13 +28,13 @@ async def find_nearest_road_segment(
             segment_id,
             name,
             {gis_schema}.ST_Distance(
-                geom::geography,
-                {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::geography
+                geom::{gis_schema}.geography,
+                {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::{gis_schema}.geography
             ) AS distance_meters
         FROM road_segments
         WHERE {gis_schema}.ST_DWithin(
-            geom::geography,
-            {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::geography,
+            geom::{gis_schema}.geography,
+            {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::{gis_schema}.geography,
             :max_dist
         )
         ORDER BY distance_meters ASC
@@ -53,21 +53,23 @@ async def find_nearest_road_segment(
             return (segment_id, distance)
     except Exception as e:
         logger.warning(
-            f"PostGIS map matching failed with query: {e}. Attempting fallback with ST_ prefix."
+            f"PostGIS map matching primary query failed: {e}. Attempting fallback with session search_path."
         )
         try:
-            fallback_query = """
+            # Explicitly ensure search_path covers gis schema in fallback
+            await db.execute(text(f"SET LOCAL search_path TO public, {gis_schema};"))
+            fallback_query = f"""
                 SELECT 
                     segment_id,
                     name,
-                    ST_Distance(
-                        geom::geography,
-                        ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+                    {gis_schema}.ST_Distance(
+                        geom::{gis_schema}.geography,
+                        {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::{gis_schema}.geography
                     ) AS distance_meters
                 FROM road_segments
-                WHERE ST_DWithin(
-                    geom::geography,
-                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+                WHERE {gis_schema}.ST_DWithin(
+                    geom::{gis_schema}.geography,
+                    {gis_schema}.ST_SetSRID({gis_schema}.ST_MakePoint(:lng, :lat), 4326)::{gis_schema}.geography,
                     :max_dist
                 )
                 ORDER BY distance_meters ASC

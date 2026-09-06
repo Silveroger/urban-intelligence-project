@@ -30,6 +30,8 @@
 
 BEGIN;
 
+SET search_path = public, gis;
+
 -- -----------------------------------------------------------------------------
 -- SECTION 0: PREFLIGHT SAFETY VERIFICATION (Current-Schema-Only)
 -- -----------------------------------------------------------------------------
@@ -238,7 +240,7 @@ BEGIN
         (r.table_name = 'incidents' AND r.column_name = 'observation_id' AND r.foreign_table_name = 'observations') OR
         (r.table_name = 'incidents' AND r.column_name = 'road_segment_id' AND r.foreign_table_name = 'road_segments')
       ) THEN
-        RAISE EXCEPTION 'PREFLIGHT CHECK 7 FAILED: Unexpected external FK dependency detected: %.% (%) -> %.%(%). Migration halted to prevent data loss.',
+        RAISE EXCEPTION 'PREFLIGHT CHECK 7 FAILED: Unexpected external FK dependency detected: %.% (column: %) -> %.%. Migration halted to prevent data loss.',
           r.table_name, r.constraint_name, r.column_name, r.foreign_table_name, r.foreign_column_name;
       END IF;
     END IF;
@@ -261,21 +263,21 @@ BEGIN
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM road_segments 
-  WHERE NOT gis.ST_IsValid(geometry);
+  WHERE NOT gis.ST_IsValid(geometry::gis.geometry);
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: road_segments has % invalid geometries.', bad_geom_cnt;
   END IF;
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM road_segments 
-  WHERE gis.ST_SRID(geometry) != 4326;
+  WHERE gis.ST_SRID(geometry::gis.geometry) != 4326;
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: road_segments has % geometries with SRID != 4326. Cannot silently alter SRID.', bad_geom_cnt;
   END IF;
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM road_segments 
-  WHERE gis.GeometryType(geometry) NOT IN ('LINESTRING', 'LineString');
+  WHERE gis.GeometryType(geometry::gis.geometry) NOT IN ('LINESTRING', 'LineString');
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: road_segments has % non-LineString geometries.', bad_geom_cnt;
   END IF;
@@ -290,7 +292,7 @@ BEGIN
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM observations 
-  WHERE location IS NOT NULL AND gis.ST_SRID(location) != 4326;
+  WHERE location IS NOT NULL AND gis.ST_SRID(location::gis.geometry) != 4326;
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: observations has % locations with SRID != 4326.', bad_geom_cnt;
   END IF;
@@ -305,7 +307,7 @@ BEGIN
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM incidents 
-  WHERE location IS NOT NULL AND gis.ST_SRID(location) != 4326;
+  WHERE location IS NOT NULL AND gis.ST_SRID(location::gis.geometry) != 4326;
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: incidents has % locations with SRID != 4326.', bad_geom_cnt;
   END IF;
@@ -320,7 +322,7 @@ BEGIN
 
   SELECT count(*) INTO bad_geom_cnt 
   FROM gps_points 
-  WHERE location IS NOT NULL AND gis.ST_SRID(location) != 4326;
+  WHERE location IS NOT NULL AND gis.ST_SRID(location::gis.geometry) != 4326;
   IF bad_geom_cnt > 0 THEN
     RAISE EXCEPTION 'PREFLIGHT CHECK 8 FAILED: gps_points has % locations with SRID != 4326.', bad_geom_cnt;
   END IF;
@@ -515,7 +517,7 @@ UPDATE road_segments SET name = road_name WHERE name IS NULL AND road_name IS NO
 
 -- 2.3 Add canonical `geom` column and enforce PostGIS LineString, SRID 4326, NOT NULL
 ALTER TABLE road_segments ADD COLUMN IF NOT EXISTS geom GEOMETRY(LineString, 4326);
-UPDATE road_segments SET geom = geometry WHERE geom IS NULL AND geometry IS NOT NULL;
+UPDATE road_segments SET geom = geometry::gis.geometry WHERE geom IS NULL AND geometry IS NOT NULL;
 ALTER TABLE road_segments ALTER COLUMN geom TYPE GEOMETRY(LineString, 4326);
 ALTER TABLE road_segments ALTER COLUMN geom SET NOT NULL;
 
@@ -578,7 +580,7 @@ UPDATE gps_points SET bus_id_varchar = bus_id::text WHERE bus_id_varchar IS NULL
 
 -- 3.3 Add canonical `geom` column and enforce PostGIS Point, SRID 4326, NOT NULL
 ALTER TABLE gps_points ADD COLUMN IF NOT EXISTS geom GEOMETRY(Point, 4326);
-UPDATE gps_points SET geom = location WHERE geom IS NULL AND location IS NOT NULL;
+UPDATE gps_points SET geom = location::gis.geometry WHERE geom IS NULL AND location IS NOT NULL;
 UPDATE gps_points SET geom = gis.ST_SetSRID(gis.ST_MakePoint(longitude, latitude), 4326) 
 WHERE geom IS NULL AND latitude IS NOT NULL AND longitude IS NOT NULL;
 ALTER TABLE gps_points ALTER COLUMN geom TYPE GEOMETRY(Point, 4326);
@@ -627,7 +629,7 @@ UPDATE observations SET segment_id = road_segment_id::text WHERE segment_id IS N
 
 -- 4.3 Add canonical `geom` column and enforce PostGIS Point, SRID 4326, NOT NULL
 ALTER TABLE observations ADD COLUMN IF NOT EXISTS geom GEOMETRY(Point, 4326);
-UPDATE observations SET geom = location WHERE geom IS NULL AND location IS NOT NULL;
+UPDATE observations SET geom = location::gis.geometry WHERE geom IS NULL AND location IS NOT NULL;
 UPDATE observations SET geom = gis.ST_SetSRID(gis.ST_MakePoint(longitude, latitude), 4326) 
 WHERE geom IS NULL AND latitude IS NOT NULL AND longitude IS NOT NULL;
 ALTER TABLE observations ALTER COLUMN geom TYPE GEOMETRY(Point, 4326);
@@ -670,6 +672,9 @@ ALTER TABLE observations ALTER COLUMN observed_at SET NOT NULL;
 ALTER TABLE observations ALTER COLUMN confidence TYPE NUMERIC(3, 2) USING confidence::NUMERIC(3, 2);
 ALTER TABLE observations ALTER COLUMN confidence SET NOT NULL;
 
+-- 4.10 Add canonical status column
+ALTER TABLE observations ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'confirmed';
+
 -- -----------------------------------------------------------------------------
 -- SECTION 5: TABLE `incidents` SCHEMA RECONCILIATION
 -- Documented Core Columns (docs/DATABASE_SCHEMA.md Section 3.5):
@@ -708,7 +713,7 @@ WHERE road_segment_id_varchar IS NULL AND road_segment_id IS NOT NULL;
 
 -- 5.3 Add canonical `geom` column and enforce PostGIS Point, SRID 4326, NOT NULL
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS geom GEOMETRY(Point, 4326);
-UPDATE incidents SET geom = location WHERE geom IS NULL AND location IS NOT NULL;
+UPDATE incidents SET geom = location::gis.geometry WHERE geom IS NULL AND location IS NOT NULL;
 UPDATE incidents SET geom = gis.ST_SetSRID(gis.ST_MakePoint(longitude, latitude), 4326) 
 WHERE geom IS NULL AND latitude IS NOT NULL AND longitude IS NOT NULL;
 ALTER TABLE incidents ALTER COLUMN geom TYPE GEOMETRY(Point, 4326);
@@ -954,6 +959,63 @@ ALTER TABLE incidents ALTER COLUMN severity SET DEFAULT 1;
 ALTER TABLE incidents DROP CONSTRAINT IF EXISTS chk_incidents_severity;
 ALTER TABLE incidents ADD CONSTRAINT chk_incidents_severity CHECK (severity BETWEEN 1 AND 4);
 
+-- 7.3.1 Drop NOT NULL on Legacy Columns to Support Canonical Models
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'gps_points' AND column_name = 'legacy_bus_id') THEN
+    ALTER TABLE gps_points ALTER COLUMN legacy_bus_id DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'gps_points' AND column_name = 'latitude') THEN
+    ALTER TABLE gps_points ALTER COLUMN latitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'gps_points' AND column_name = 'longitude') THEN
+    ALTER TABLE gps_points ALTER COLUMN longitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'gps_points' AND column_name = 'location') THEN
+    ALTER TABLE gps_points ALTER COLUMN location DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'incidents' AND column_name = 'legacy_severity') THEN
+    ALTER TABLE incidents ALTER COLUMN legacy_severity DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'incidents' AND column_name = 'latitude') THEN
+    ALTER TABLE incidents ALTER COLUMN latitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'incidents' AND column_name = 'longitude') THEN
+    ALTER TABLE incidents ALTER COLUMN longitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'incidents' AND column_name = 'location') THEN
+    ALTER TABLE incidents ALTER COLUMN location DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'legacy_severity') THEN
+    ALTER TABLE observations ALTER COLUMN legacy_severity DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'latitude') THEN
+    ALTER TABLE observations ALTER COLUMN latitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'longitude') THEN
+    ALTER TABLE observations ALTER COLUMN longitude DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'location') THEN
+    ALTER TABLE observations ALTER COLUMN location DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'detected_at') THEN
+    ALTER TABLE observations ALTER COLUMN detected_at DROP NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'observations' AND column_name = 'observation_type') THEN
+    ALTER TABLE observations ALTER COLUMN observation_type DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'road_segments' AND column_name = 'geometry') THEN
+    ALTER TABLE road_segments ALTER COLUMN geometry DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'segment_history' AND column_name = 'road_segment_id') THEN
+    ALTER TABLE segment_history ALTER COLUMN road_segment_id DROP NOT NULL;
+  END IF;
+END $$;
+
 -- 7.4 Establish Canonical Foreign Key Constraints (Strictly Preserving Documented / Original ON DELETE)
 ALTER TABLE observations
   ADD CONSTRAINT fk_observations_bus 
@@ -1044,8 +1106,26 @@ SELECT setval(
 );
 
 -- -----------------------------------------------------------------------------
--- SECTION 9: PRE-COMMIT VALIDATION (CRITICAL - ROLLS BACK ON ANY FAILURE)
+-- SECTION 8.5: CANONICAL AUXILIARY ENTITIES & COMPATIBILITY VIEWS
 -- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS routes (
+    route_id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255),
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS trips (
+    trip_id VARCHAR(64) PRIMARY KEY,
+    bus_id VARCHAR(64) REFERENCES buses(bus_id) ON DELETE CASCADE,
+    route_id VARCHAR(64) REFERENCES routes(route_id) ON DELETE SET NULL,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    status VARCHAR(32) DEFAULT 'scheduled'
+);
+
+CREATE OR REPLACE VIEW gps_records AS SELECT * FROM gps_points;
+
 DO $$
 DECLARE
   orphaned_cnt INT;
