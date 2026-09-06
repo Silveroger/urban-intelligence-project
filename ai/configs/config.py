@@ -59,6 +59,7 @@ class EdgeConfig:
     # Class mappings & Severity configuration
     defect_classes: List[str] = field(default_factory=lambda: [
         "pothole",
+        "manhole",
         "damaged_road",
         "waterlogging",
         "missing_road_divider",
@@ -75,6 +76,13 @@ class EdgeConfig:
         "d40": "pothole",
         "pothole_cluster": "pothole",
         
+        # Manholes
+        "manhole": "manhole",
+        "manholes": "manhole",
+        "sunken_manhole": "manhole",
+        "open_manhole": "manhole",
+        "drain_cover": "manhole",
+
         # Cracks & Damaged Surface
         "crack": "damaged_road",
         "cracks": "damaged_road",
@@ -91,7 +99,6 @@ class EdgeConfig:
         "bump": "damaged_road",
         "patch": "damaged_road",
         "patched_pothole": "damaged_road",
-        "manhole": "damaged_road",
 
         # Waterlogging & Hazards
         "waterlogging": "waterlogging",
@@ -131,6 +138,7 @@ class EdgeConfig:
     # Severity weighting for road defects (1: Minor, 2: Moderate, 3: Severe, 4: Critical)
     severity_map: Dict[str, int] = field(default_factory=lambda: {
         "pothole": 3,
+        "manhole": 3,
         "damaged_road": 2,
         "waterlogging": 3,
         "missing_road_divider": 3,

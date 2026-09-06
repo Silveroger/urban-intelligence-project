@@ -4,7 +4,21 @@ import type { Incident } from '../../types/incidents';
 import { getRoadColor, getRoadStatusLabel } from '../../utils/roadColor';
 import { formatTimestamp, formatConfidence, getEventTypeLabel } from '../../utils/formatters';
 import { ConditionHistory } from '../Analytics/ConditionHistory';
-import { Camera, Image as ImageIcon } from 'lucide-react';
+import { AlertTriangle, Camera, Image as ImageIcon } from 'lucide-react';
+
+function getRiskColor(score: number): string {
+  if (score >= 85) return '#ef4444'; // Red (Critical)
+  if (score >= 65) return '#f97316'; // Orange (High)
+  if (score >= 40) return '#f59e0b'; // Amber (Moderate)
+  return '#10b981'; // Green (Low)
+}
+
+function getRiskLabel(score: number): string {
+  if (score >= 85) return 'Critical Risk';
+  if (score >= 65) return 'High Risk';
+  if (score >= 40) return 'Moderate Risk';
+  return 'Low Risk';
+}
 
 interface InspectorProps {
   selectedRoad: RoadSegment | null;
@@ -103,6 +117,29 @@ export function Inspector({
         {/* ─── Event ─── */}
         {selectedEvent && (
           <div className="inspector-section">
+            {selectedEvent.risk_score !== undefined && (
+              <div className="inspector-score-card">
+                <div className="score-label">Hazard Risk Score</div>
+                <div
+                  className="score-value"
+                  style={{ color: getRiskColor(selectedEvent.risk_score) }}
+                >
+                  {Math.round(selectedEvent.risk_score)}
+                  <span className="score-max">/100</span>
+                </div>
+                <div
+                  className="score-status-pill"
+                  style={{
+                    backgroundColor: `${getRiskColor(selectedEvent.risk_score)}22`,
+                    borderColor: getRiskColor(selectedEvent.risk_score),
+                    color: getRiskColor(selectedEvent.risk_score),
+                  }}
+                >
+                  {selectedEvent.risk_level ? `${selectedEvent.risk_level} Risk` : getRiskLabel(selectedEvent.risk_score)}
+                </div>
+              </div>
+            )}
+
             <div className="inspector-grid">
               <Field label="Event ID" value={selectedEvent.event_id} mono />
               <Field label="Event Type" value={getEventTypeLabel(selectedEvent.event_type)} />
@@ -111,6 +148,15 @@ export function Inspector({
                 value={selectedEvent.severity !== undefined ? `Level ${selectedEvent.severity}` : 'N/A'}
               />
               <Field label="Confidence" value={formatConfidence(selectedEvent.confidence)} />
+              {selectedEvent.breadth_cm !== undefined && (
+                <Field label="Breadth (Width)" value={`${selectedEvent.breadth_cm} cm`} />
+              )}
+              {selectedEvent.depth_cm !== undefined && (
+                <Field label="Estimated Depth" value={`${selectedEvent.depth_cm} cm`} />
+              )}
+              {selectedEvent.dimensions?.area_sq_cm !== undefined && (
+                <Field label="Estimated Area" value={`${selectedEvent.dimensions.area_sq_cm} cm²`} />
+              )}
               <Field label="Vehicle / Bus ID" value={selectedEvent.bus_id} mono />
               <Field label="Matched Segment" value={selectedEvent.road_segment_id} mono />
               <Field
@@ -120,6 +166,18 @@ export function Inspector({
               />
               <Field label="Detected At" value={formatTimestamp(selectedEvent.timestamp)} />
             </div>
+
+            {selectedEvent.risk_assessment && (
+              <div className="mt-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs">
+                <div className="text-[11px] font-semibold text-amber-400 mb-1 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Civil Hazard Diagnostic</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  {selectedEvent.risk_assessment}
+                </p>
+              </div>
+            )}
 
             {selectedEvent.evidence_uri && (
               <div className="mt-4 p-3 bg-slate-900/80 rounded-xl border border-slate-800">

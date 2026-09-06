@@ -19,7 +19,39 @@ def main():
     parser.add_argument("--weights", dest="weights", default=None, help="Custom YOLO weights (.pt or .onnx) file path")
     parser.add_argument("--bus-id", dest="bus_id", default="BUS-101", help="Bus / sensing vehicle identifier")
     parser.add_argument("--no-window", dest="no_window", action="store_true", help="Run headless without popup window")
+    parser.add_argument("--hardware", dest="hardware", action="store_true", help="Launch in Smart Bus Hardware Receiver mode (TCP 5000/5001/5002)")
+    parser.add_argument("--pi-ip", dest="pi_ip", default="100.111.145.77", help="Raspberry Pi IP address (default: 100.111.145.77)")
+    parser.add_argument("--video-port", dest="video_port", type=int, default=5000, help="Video stream port (default: 5000)")
+    parser.add_argument("--meta-port", dest="meta_port", type=int, default=5001, help="Metadata port (default: 5001)")
+    parser.add_argument("--simulate-pi", dest="simulate_pi", action="store_true", help="Run with simulated Pi test rig")
     args = parser.parse_args()
+
+    if args.hardware:
+        from ai.hardware_receiver import SmartBusHardwareReceiver
+        from run_hardware_receiver import simulate_raspberry_pi
+        
+        target_pi_ip = "127.0.0.1" if args.simulate_pi else args.pi_ip
+        if args.simulate_pi:
+            simulate_raspberry_pi(
+                video_port=args.video_port,
+                meta_port=args.meta_port,
+                bus_id=args.bus_id
+            )
+
+        receiver = SmartBusHardwareReceiver(
+            video_host="0.0.0.0",
+            video_port=args.video_port,
+            metadata_host="0.0.0.0",
+            metadata_port=args.meta_port,
+            pi_ip=target_pi_ip,
+            yolo_model=args.weights or "yolo26n.pt",
+            show_window=not args.no_window
+        )
+        try:
+            receiver.start()
+        except KeyboardInterrupt:
+            receiver.stop()
+        return
 
     print("=" * 65)
     print(" SIH 26124 — Edge AI Live Perception Scanner (Hardware & Edge)")

@@ -82,9 +82,19 @@
     "longitude": 76.7794,
     "road_segment_id": "seg_chandigarh_001",
     "event_type": "road_defect",
-    "class_name": "pothole_deep",
+    "class_name": "pothole",
     "confidence": 0.89,
     "severity": 3,
+    "risk_score": 78.5,
+    "risk_level": "High",
+    "breadth_cm": 44.5,
+    "depth_cm": 6.8,
+    "dimensions": {
+      "breadth_cm": 44.5,
+      "depth_cm": 6.8,
+      "area_sq_cm": 665.0
+    },
+    "risk_assessment": "Severe pothole (6.8cm depth, 44.5cm breadth): High risk of wheel rim and suspension damage.",
     "frame_id": 4120,
     "evidence_uri": "http://localhost:8000/evidence/evt_pot_001.jpg"
   }

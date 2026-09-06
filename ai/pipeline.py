@@ -290,7 +290,7 @@ class EdgeAIPipeline:
 
                 # 1. Road Defect & Hazard Detection
                 if run_road_defect or run_waterlogging:
-                    defects = self.defect_detector.detect(frame)
+                    defects = self.defect_detector.detect(frame, speed_kmh=telemetry.get("speed_kmh"))
                     for d in defects:
                         is_water = "water" in d["class_name"]
                         # Skip if this specific category is disabled
@@ -299,13 +299,44 @@ class EdgeAIPipeline:
                         if not is_water and not run_road_defect:
                             continue
 
+                        r_score = d.get("risk_score")
+                        b_cm = d.get("breadth_cm")
+                        d_cm = d.get("depth_cm")
+                        r_lvl = d.get("risk_level", "Moderate")
+
+                        if r_score is not None and b_cm is not None:
+                            box_label = f"{d['class_name'].upper()} [RISK {int(r_score)} {r_lvl.upper()} | {b_cm}cm"
+                            if d_cm is not None and "pothole" in d["class_name"]:
+                                box_label += f" x {d_cm}cm"
+                            box_label += "]"
+                        else:
+                            box_label = f"{d['class_name'].upper()} (SEV {d['severity']}) - {int(d['confidence']*100)}%"
+
+                        # Color based on hazard risk
+                        if r_score is not None:
+                            if r_score >= 85:
+                                b_color = (0, 0, 255)       # Red (Critical)
+                            elif r_score >= 65:
+                                b_color = (0, 140, 255)     # Orange (High)
+                            elif r_score >= 40:
+                                b_color = (0, 215, 255)     # Amber (Moderate)
+                            else:
+                                b_color = (0, 220, 100)     # Green (Low)
+                        else:
+                            b_color = (0, 0, 255) if d["class_name"] == "pothole" else (255, 180, 0)
+
                         current_boxes.append({
                             "bbox": d["bbox"],
-                            "label": f"{d['class_name'].upper()} (SEV {d['severity']}) - {int(d['confidence']*100)}%",
-                            "color": (0, 0, 255) if d["class_name"] == "pothole" else (255, 180, 0)
+                            "label": box_label,
+                            "color": b_color
                         })
-                        alert_banner = f"DEFECT DETECTED: {d['class_name'].upper()}"
-                        alert_color = (0, 0, 255)
+
+                        if r_score and r_score >= 65:
+                            alert_banner = f"HAZARD: {d['class_name'].upper()} [RISK {int(r_score)}/100 {r_lvl.upper()}]"
+                            alert_color = (0, 0, 255) if r_score >= 85 else (0, 140, 255)
+                        elif not alert_banner:
+                            alert_banner = f"DEFECT DETECTED: {d['class_name'].upper()}"
+                            alert_color = (0, 165, 255)
 
                         evt = self.optimizer.package_observation(
                             bus_id=self.bus_id,
@@ -316,7 +347,13 @@ class EdgeAIPipeline:
                             frame=frame,
                             bbox=d["bbox"],
                             frame_id=frame_idx,
-                            event_type="waterlogging" if is_water else "road_defect"
+                            event_type="waterlogging" if is_water else "road_defect",
+                            risk_score=r_score,
+                            risk_level=r_lvl,
+                            breadth_cm=b_cm,
+                            depth_cm=d_cm,
+                            dimensions=d.get("dimensions"),
+                            risk_assessment=d.get("risk_assessment")
                         )
                         if evt:
                             events_generated.append(evt)

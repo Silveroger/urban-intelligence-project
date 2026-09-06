@@ -37,7 +37,13 @@ class EdgeOptimizer:
         frame: np.ndarray,
         bbox: List[int],
         frame_id: int,
-        event_type: str = "road_defect"
+        event_type: str = "road_defect",
+        risk_score: Optional[float] = None,
+        risk_level: Optional[str] = None,
+        breadth_cm: Optional[float] = None,
+        depth_cm: Optional[float] = None,
+        dimensions: Optional[Dict] = None,
+        risk_assessment: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Generates a validated observation payload according to docs/AI_CONTRACT.md.
@@ -74,7 +80,16 @@ class EdgeOptimizer:
         # Crop and save evidence keyframe
         evidence_filename = f"{event_id}.jpg"
         evidence_path = self.evidence_dir / evidence_filename
-        self._save_crop_with_bbox(frame, bbox, evidence_path, class_name)
+        
+        # Build evidence label with risk score & dimensions if present
+        if risk_score is not None and breadth_cm is not None:
+            ev_label = f"{class_name.upper()} | RISK: {int(risk_score)} ({risk_level or 'SEV ' + str(severity)}) | {breadth_cm}cm"
+            if depth_cm is not None:
+                ev_label += f" x {depth_cm}cm"
+        else:
+            ev_label = f"{class_name.upper()} (SEV {severity})"
+            
+        self._save_crop_with_bbox(frame, bbox, evidence_path, ev_label, risk_score)
 
         # Store in recent memory for deduplication
         self.recent_events.append({
@@ -100,7 +115,13 @@ class EdgeOptimizer:
             "confidence": round(confidence, 2),
             "severity": severity,
             "frame_id": frame_id,
-            "evidence_uri": f"/evidence/{evidence_filename}"
+            "evidence_uri": f"/evidence/{evidence_filename}",
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "breadth_cm": breadth_cm,
+            "depth_cm": depth_cm,
+            "dimensions": dimensions,
+            "risk_assessment": risk_assessment
         }
 
         return payload
@@ -143,25 +164,54 @@ class EdgeOptimizer:
 
         return payload
 
-    def _save_crop_with_bbox(self, frame: np.ndarray, bbox: List[int], out_path: Path, label: str):
+    def _save_crop_with_bbox(
+        self,
+        frame: np.ndarray,
+        bbox: List[int],
+        out_path: Path,
+        label: str,
+        risk_score: Optional[float] = None
+    ):
         """
-        Saves JPEG keyframe evidence image with marked bounding box.
+        Saves JPEG keyframe evidence image with marked bounding box and risk factor tag.
         """
         try:
             import cv2
             img = frame.copy()
             x1, y1, x2, y2 = bbox
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            
+            # Box color based on risk score / severity
+            if risk_score is not None:
+                if risk_score >= 85:
+                    box_color = (0, 0, 245)      # Bright Red (Critical)
+                elif risk_score >= 65:
+                    box_color = (0, 140, 255)    # Orange (High)
+                elif risk_score >= 40:
+                    box_color = (0, 215, 255)    # Amber/Yellow (Moderate)
+                else:
+                    box_color = (0, 220, 100)    # Green (Low)
+            else:
+                box_color = (0, 0, 255)
+
+            cv2.rectangle(img, (x1, y1), (x2, y2), box_color, 2)
+            
+            # Badge background for label
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            badge_y1 = max(0, y1 - th - 10)
+            badge_y2 = max(th + 10, y1)
+            cv2.rectangle(img, (x1, badge_y1), (x1 + tw + 8, badge_y2), box_color, -1)
+            
             cv2.putText(
                 img,
                 label,
-                (x1, max(20, y1 - 8)),
+                (x1 + 4, badge_y2 - 5),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 255),
-                2
+                0.5,
+                (0, 0, 0) if (box_color[0] + box_color[1] + box_color[2]) > 380 else (255, 255, 255),
+                1,
+                cv2.LINE_AA
             )
-            cv2.imwrite(str(out_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            cv2.imwrite(str(out_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
         except Exception:
             # Simple placeholder image writing if cv2 is not available
             with open(out_path, "wb") as f:

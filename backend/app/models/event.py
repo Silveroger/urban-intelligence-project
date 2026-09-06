@@ -30,3 +30,9 @@ class ObservationEvent(BaseModel):
     severity: Optional[int] = Field(default=1, ge=1, le=4)
     frame_id: Optional[int] = None
     evidence_uri: Optional[str] = None
+    risk_score: Optional[float] = None
+    risk_level: Optional[str] = None
+    breadth_cm: Optional[float] = None
+    depth_cm: Optional[float] = None
+    dimensions: Optional[dict] = None
+    risk_assessment: Optional[str] = None

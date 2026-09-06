@@ -21,6 +21,10 @@ interface DetectionLogEntry {
   conf: number;
   severity: number;
   time: string;
+  risk_score?: number;
+  risk_level?: string;
+  breadth_cm?: number;
+  depth_cm?: number;
 }
 
 interface PipelineEventPayload {
@@ -35,6 +39,12 @@ interface PipelineEventPayload {
   confidence: number;
   severity?: number;
   evidence_uri?: string;
+  risk_score?: number;
+  risk_level?: string;
+  breadth_cm?: number;
+  depth_cm?: number;
+  dimensions?: { breadth_cm: number; depth_cm: number; area_sq_cm?: number; bbox_width?: number; bbox_height?: number };
+  risk_assessment?: string;
 }
 
 interface VideoStatusResponse {
@@ -122,6 +132,10 @@ export function VideoProcessingHub({
               conf: e.confidence,
               severity: e.severity ?? 1,
               time: new Date().toLocaleTimeString(),
+              risk_score: e.risk_score,
+              risk_level: e.risk_level,
+              breadth_cm: e.breadth_cm,
+              depth_cm: e.depth_cm,
             }));
             setDetectedLog(mapped);
             updateModelAccuracy(mapped);
@@ -141,6 +155,12 @@ export function VideoProcessingHub({
                   confidence: evt.confidence,
                   severity: evt.severity,
                   evidence_uri: evt.evidence_uri,
+                  risk_score: evt.risk_score,
+                  risk_level: evt.risk_level,
+                  breadth_cm: evt.breadth_cm,
+                  depth_cm: evt.depth_cm,
+                  dimensions: evt.dimensions,
+                  risk_assessment: evt.risk_assessment,
                 });
               });
             }
@@ -577,6 +597,15 @@ export function VideoProcessingHub({
                       {log.class_name.replace(/_/g, ' ').toUpperCase()}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {log.risk_score !== undefined && (
+                        <span style={{
+                          fontSize: '10px', fontWeight: 700, fontFamily: 'monospace', padding: '2px 6px', borderRadius: '4px',
+                          background: log.risk_score >= 85 ? 'rgba(239,68,68,0.2)' : (log.risk_score >= 65 ? 'rgba(249,115,22,0.2)' : 'rgba(245,158,11,0.2)'),
+                          color: log.risk_score >= 85 ? '#ef4444' : (log.risk_score >= 65 ? '#f97316' : '#f59e0b'),
+                        }}>
+                          RISK {Math.round(log.risk_score)}
+                        </span>
+                      )}
                       <span style={{
                         fontFamily: 'monospace', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
                         background: log.conf >= 0.85 ? 'rgba(34,211,238,0.15)' : 'rgba(251,191,36,0.15)',

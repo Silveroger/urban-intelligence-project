@@ -21,6 +21,12 @@ Each perception event produced by computer vision models must conform to the fol
 | `class_name` | `string` | Optional | Specific perception class (see Section 3). |
 | `confidence` | `number` ($0.0-1.0$) | Yes | Model prediction confidence score. |
 | `severity` | `integer` ($1-4$) | Optional | Severity rating: $1$ (Minor), $2$ (Moderate), $3$ (Severe), $4$ (Critical). |
+| `risk_score` | `number` ($0-100$) | Optional | Civil-engineering composite hazard score based on breadth and depth. |
+| `risk_level` | `enum` | Optional | One of: `"Low"`, `"Moderate"`, `"High"`, `"Critical"`. |
+| `breadth_cm` | `number` | Optional | Perspective-calibrated width across the road lane in centimeters. |
+| `depth_cm` | `number` | Optional | Optical depression depth estimated via cavity photometric shadow & box geometry (cm). |
+| `dimensions` | `object` | Optional | Detailed physical measurements: `{breadth_cm, depth_cm, area_sq_cm, bbox_width, bbox_height}`. |
+| `risk_assessment`| `string` | Optional | Engineering hazard impact summary for maintenance prioritization. |
 | `bbox` | `array[number]` | Optional | Bounding box coordinates `[x1, y1, x2, y2]` in pixel coordinates. |
 | `frame_id` | `integer` | Optional | Video stream sequence frame number. |
 | `track_id` | `string` / `integer` | Optional | Persistent tracking ID for dynamic objects (e.g., vehicles). |
@@ -34,13 +40,17 @@ Each perception event produced by computer vision models must conform to the fol
 
 ### 3.1 Road Defect Detection (`road_defect`)
 - **Module:** `ai/detectors/road_defect_detector.py`
-- **Classes:** `"pothole"`, `"damaged_road"`, `"major_crack"`, `"surface_wear"`.
-- **Severity Criteria:**
-  - $1$ (Minor): Small surface crack, surface wear < 15% bounding area.
-  - $2$ (Moderate): Single shallow pothole or linear fissure.
-  - $3$ (Severe): Deep pothole with prominent rim shadows or multi-branch alligator cracking.
-  - $4$ (Critical): Multiple large continuous potholes spanning driving lane.
-- **Evidence:** Cropped, high-resolution keyframe centered on the defect with highlighted bounding box.
+- **Classes:** `"pothole"`, `"manhole"`, `"damaged_road"`, `"major_crack"`, `"surface_wear"`.
+- **Dimensional Risk Factor Criteria:**
+  - **Breadth ($B_{\text{cm}}$):** Ground-plane perspective projection across road corridor ($15\text{ cm} - 110\text{ cm}$).
+  - **Depth ($D_{\text{cm}}$):** Cavity contrast $\Delta I = (I_{\text{road}} - I_{\text{defect}})/I_{\text{road}}$ combined with vertical box aspect ratio ($1.5\text{ cm} - 15\text{ cm}$).
+  - **Pothole Composite Score:**
+    $$\text{Risk Score} = \min\left(100, \max\left(10, \text{round}\left(\frac{D_{\text{cm}}}{8.5} \times 55 + \frac{B_{\text{cm}}}{70} \times 35 + \text{conf} \times 10\right)\right)\right)$$
+  - **Manhole Hazards:**
+    - Open/Uncovered Manhole ($\Delta I > 0.45$): Critical Emergency ($95 - 100$).
+    - Sunken Manhole ($3.5 - 8\text{ cm}$ step): High Risk ($68 - 88$).
+    - Uneven/Flush Manhole ($< 3\text{ cm}$ step): Moderate/Low ($20 - 55$).
+- **Evidence:** Cropped, high-resolution keyframe centered on the defect with highlighted risk score badge and bounding box.
 
 ### 3.2 Waterlogging Detection (`waterlogging`)
 - **Classes:** `"waterlogging"`, `"water_patch"`, `"submerged_lane"`.
@@ -95,3 +105,15 @@ The pipeline supports selective detector execution to conserve edge compute (e.g
   - ONNX Runtime export with TensorRT / CUDA execution providers.
   - INT8 dynamic post-training quantization for low-power ARM/x86 CPUs.
   - FP16 half-precision GPU inference for NVIDIA Jetson nodes.
+
+---
+
+## 6. Smart Bus Hardware Streaming Protocol (`ai/hardware_receiver.py`)
+Direct interface with Raspberry Pi sensing nodes on fleet vehicles:
+
+| Channel / Port | Protocol | Direction | Payload & Purpose |
+|---|---|---|---|
+| `5000` | TCP / PyAV Low-Delay | Pi $\to$ Laptop | Live H.264 video stream (`tcp://0.0.0.0:5000?listen=1`). |
+| `5001` | TCP JSON-lines | Pi $\to$ Laptop | `video_sync` (`bus_id`, `video_start_unix`) and `gps` fixes (`timestamp`, `latitude`, `longitude`, `speed_kmh`). |
+| `5002` | TCP JSON-lines | Laptop $\to$ Pi | Returns real-time detections with `risk_score`, `breadth_cm`, `depth_cm`, and bounding boxes. |
+| Ingest API | HTTP REST | Laptop $\to$ Backend | Automatically forwards observations to `/api/v1/ingest/observation` and `/api/v1/ingest/telemetry` for live GIS map updates. |

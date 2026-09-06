@@ -95,16 +95,19 @@ class SpatialEngine:
         cname = (event.class_name or "").lower()
 
         penalty = 0.0
+        risk_weight = (event.risk_score / 50.0) if event.risk_score else float(event.severity or 1)
         if "pothole" in cname:
             props["pothole_count"] += 1
-            penalty = 12.0 * (event.severity or 1)
+            penalty = 12.0 * risk_weight
+        elif "manhole" in cname:
+            penalty = 10.0 * risk_weight
         elif "water" in cname or event.event_type.value == "waterlogging":
             props["waterlogging_count"] += 1
-            penalty = 15.0 * (event.severity or 1)
+            penalty = 15.0 * risk_weight
         elif "crack" in cname or "damage" in cname:
-            penalty = 7.0 * (event.severity or 1)
+            penalty = 7.0 * risk_weight
         elif "divider" in cname or "zebra" in cname or "sign" in cname:
-            penalty = 6.0 * (event.severity or 1)
+            penalty = 6.0 * risk_weight
 
         # Dynamic score degradation with damping
         current_score = props["condition_score"]
