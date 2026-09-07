@@ -2,14 +2,14 @@
 # Spawns Backend in Window 1, Frontend in Window 2, and opens Dashboard in Browser
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 Set-Location $ScriptDir
 
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " SIH 26124 — Launching Full Development Environment" -ForegroundColor Cyan
-Write-Host " 1. Backend:  http://localhost:8000 (FastAPI + PostGIS)" -ForegroundColor Green
-Write-Host " 2. Frontend: http://localhost:5173 (React + Google Maps)" -ForegroundColor Green
-Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host ' SIH 26124 — Launching Full Development Environment' -ForegroundColor Cyan
+Write-Host ' 1. Backend:  http://localhost:8000 [FastAPI + PostGIS]' -ForegroundColor Green
+Write-Host ' 2. Frontend: http://localhost:5173 [React + Google Maps]' -ForegroundColor Green
+Write-Host '============================================================' -ForegroundColor Cyan
 
 # 1. Launch Backend in new window
 Write-Host "[*] Launching Backend server in dedicated terminal..." -ForegroundColor Yellow
@@ -26,4 +26,4 @@ Start-Sleep -Seconds 3
 Write-Host "[*] Opening Urban Intelligence Dashboard in browser..." -ForegroundColor Green
 Start-Process "http://localhost:5173"
 
-Write-Host "`n[✓] Dev environment launched successfully! Keep both terminal windows open." -ForegroundColor Cyan
+Write-Host '[OK] Dev environment launched successfully! Keep both terminal windows open.' -ForegroundColor Cyan

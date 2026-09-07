@@ -2,7 +2,7 @@
 # Runs from the repository root (urban-dashboard)
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 Set-Location $ScriptDir
 
 # Locate virtualenv python
@@ -15,13 +15,13 @@ if (Test-Path "$ScriptDir\.venv\Scripts\python.exe") {
     $PythonPath = "python"
 }
 
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " SIH 26124 — Urban Intelligence Platform Canonical Backend" -ForegroundColor Cyan
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host ' SIH 26124 — Urban Intelligence Platform Canonical Backend' -ForegroundColor Cyan
 Write-Host " Runtime: $PythonPath" -ForegroundColor Gray
 Write-Host " Root Directory: $ScriptDir" -ForegroundColor Gray
-Write-Host " API Documentation: http://localhost:8000/docs" -ForegroundColor Yellow
-Write-Host " Health Check:     http://localhost:8000/health" -ForegroundColor Green
-Write-Host " Database Health:  http://localhost:8000/health/database" -ForegroundColor Green
-Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ' API Documentation: http://localhost:8000/docs' -ForegroundColor Yellow
+Write-Host ' Health Check:     http://localhost:8000/health' -ForegroundColor Green
+Write-Host ' Database Health:  http://localhost:8000/health/database' -ForegroundColor Green
+Write-Host '============================================================' -ForegroundColor Cyan
 
 & $PythonPath -m uvicorn backend.app.main:app --reload --port 8000 --host 0.0.0.0
