@@ -1,45 +1,62 @@
 # Agent & Implementation State
 
-> **Note:** This document tracks temporary, current development state. Stale entries are pruned upon milestone completion.
+> **Note:** This document tracks the authoritative, active implementation baseline and system status.
 
 ## 1. Current Implementation Baseline
-- **Branch:** `backend-ml-integration` (integrates Chirag's AI + hardware pipeline with Eshan's canonical Backend).
+- **Canonical Integrated Branch:** `main` (promoted from verified integration branch `backend-ml-integration`).
+- **Integration Baseline Commit:** `782ceef` (`fix(launchers): sanitize PowerShell quotation and script root for zero-friction dev launch`).
+- **Current Architecture:** Canonical FastAPI Backend + Chirag Edge AI via `BackendIngestAdapter` + React GIS Dashboard.
 - **Backend Status:** Canonical PostGIS architecture preserved with **100% test pass rate (47/47 tests passing)**.
-- **AI & Edge Perception Subsystem:**
-  - Preserved Chirag's detector algorithms (`road_defect_detector.py`, `infrastructure_detector.py`, `traffic_density_detector.py`, `pedestrian_detector.py`, `plate_recognizer.py`), tracker (`vehicle_tracker.py`), GPS sync (`gps_sync.py`), optimizer (`edge_optimizer.py`), and test video generator (`test_video_generator.py`).
-  - Implemented thin boundary adapter: `ai/adapter/backend_adapter.py` (`BackendIngestAdapter`) normalizing telemetry, defect observations, and incident alerts.
-  - Normalizes edge taxonomy: maps `event_type="pedestrian"` to canonical `event_type="incident"` with `class_name="vulnerable_pedestrian"`.
-  - Normalizes coordinates (`lat`/`lng` to `latitude`/`longitude`) and validates plate OCR confidence.
-  - Passes diagnostic metrics (`risk_score`, `risk_level`, `breadth_cm`, `depth_cm`, `dimensions`, `risk_assessment`) into `Observation.metadata_json` (PostgreSQL `observations.metadata` JSONB column).
-  - Wired `ai/pipeline.py` and `ai/hardware_receiver.py` to stream normalized outputs to canonical backend REST APIs (`/api/v1/observations`, `/api/v1/telemetry`, `/api/v1/incidents`).
-  - Added video processing trigger router: `/api/v1/ingest/video/status` and `/api/v1/ingest/video/process`.
-- **Frontend Integration:**
-  - Added "Edge AI Video Hub" modal button and `VideoProcessingHub` component to `src/pages/Dashboard.tsx` while strictly preserving Eshan's canonical WebSocket listener (`connectLiveStream`).
-  - Added Civil Hazard Diagnostic panel, defect dimensions, and keyframe evidence crop to `src/components/Details/Inspector.tsx` while preserving bus inspection and incident score cards.
-  - Verified clean TypeScript build via `npm run build`.
-- **Live Database & Infrastructure:**
-  - PostgreSQL 17.6 + PostGIS 3.3.7 verified in schema `gis` on Supabase.
-  - Single source of truth: all map-matching, road condition scoring recalculation, and WebSocket delta broadcasting occur canonically in PostGIS. No duplicate in-memory backend.
-- **Testing & Verification:**
-  - `pytest`: 47/47 tests passing (100% pass rate), including all 40 canonical backend tests + 7 new AI integration tests (`tests/test_ai_integration.py`).
-  - `npm run build`: Clean compilation with zero TypeScript errors.
+
+### Subsystem Status & Verified Components:
+1. **Edge AI Perception & Hardware (`ai/`):**
+   - Preserved Chirag's detector algorithms (`road_defect_detector.py`, `infrastructure_detector.py`, `traffic_density_detector.py`, `pedestrian_detector.py`, `plate_recognizer.py`), tracker (`vehicle_tracker.py`), GPS sync (`gps_sync.py`), optimizer (`edge_optimizer.py`), hardware receiver (`hardware_receiver.py`), and test video generator (`test_video_generator.py`).
+   - Active runner scripts: `python run_live_scanner.py --post-backend` and `python run_hardware_receiver.py --backend http://localhost:8000`.
+2. **Boundary Adapter (`ai/adapter/backend_adapter.py`):**
+   - Normalizes edge taxonomy: maps `event_type="pedestrian"` to canonical `event_type="incident"` with `class_name="vulnerable_pedestrian"`.
+   - Normalizes coordinates (`lat`/`lng` to `latitude`/`longitude`) and enforces plate OCR confidence rules.
+   - Preserves diagnostic civil metrics (`risk_score`, `risk_level`, `breadth_cm`, `depth_cm`, `dimensions`, `risk_assessment`) in PostgreSQL `observations.metadata` JSONB.
+   - Dispatches directly to canonical FastAPI endpoints (`/api/v1/observations`, `/api/v1/telemetry`, `/api/v1/incidents`).
+3. **Canonical Backend (`backend/`):**
+   - High-performance async FastAPI running on port 8000.
+   - Connected to Supabase PostgreSQL 17.6 + PostGIS 3.3.7 (`gis` schema) via IPv4 Regional Session Pooler.
+   - Single source of truth for persistence, spatial map matching (`ST_DWithin`), condition score recalculation, and WebSocket live broadcasts (`/ws/live`).
+   - Zero SQLite fallback; HTTP 503 `DATABASE_CONNECTION_ERROR` gateway.
+   - Root-level launch enabled via `sys.path` bootstrapping in `backend/__init__.py` and `backend/app/main.py`.
+4. **GIS Frontend Dashboard (`src/`):**
+   - React 19 + TypeScript + deck.gl + Google Maps vector rendering.
+   - Live configuration: `VITE_USE_MOCK=false` streaming real-time bus and defect updates.
+   - Edge Video Processing Hub modal (`VideoProcessingHub.tsx`) and Civil Hazard Inspector panel (`Inspector.tsx`).
+   - Zero TypeScript compilation errors (`npm run build`).
+5. **Zero-Friction Local Development:**
+   - Single-command orchestration: `.\start-dev.ps1` launches backend, frontend, and browser dashboard.
+   - Dedicated scripts: `start-backend.ps1` and `start-frontend.ps1` (with batch scripts).
 
 ---
 
-## 2. Active Milestones & Focus
-- **Current Milestone:** AI Subsystem Integration & Compatibility Verification.
-- **Status:** Complete. Edge perception models, hardware receiver, and test media from `origin/ml` successfully integrated with canonical Backend and PostGIS database via thin adapter boundary.
+## 2. Testing & Verification Summary
+
+- **Backend Automated Tests:** 47 passed in ~30s (100% pass rate).
+  - 40 canonical backend tests (routes, scoring, severity, coordinates, validation, live PostGIS integration).
+  - 7 AI integration tests (`tests/test_ai_integration.py`).
+- **Frontend Build:** `npm run build` completed in 1.67s with exit code 0.
+- **System Health:** `GET /health` $\to$ HTTP 200 `{"status": "ok"}`.
+- **Database Health:** `GET /health/database` $\to$ HTTP 200 `{"status": "connected", "postgis_version": "POSTGIS=\"3.3.7...\""}`.
+- **AI Imports & Execution:** Verified in root `.venv` and System Python 3.13.
 
 ---
 
-## 3. Known Blockers & Dependencies
-- **Database Schema Migration:** RESOLVED. Schema migration and constraint cleanup are complete in the live Supabase instance.
-- **Database Connectivity:** RESOLVED. Supabase Regional IPv4 pooler configuration verified.
-- **Road Geometry Alignment:** RESOLVED. OSM-derived canonical geometries loaded and verified on Google Maps.
-- **Google Maps API Key:** Configured in `.env` for 3D vector map features.
-- **Bug Register:** All critical defects and remediations are tracked in [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).
+## 3. Subsystem Ownership Rules
+- **Chirag / AI:** Owns computer vision perception, YOLO models, detectors, tracking, GPS/video synchronization, edge optimization, hardware UDP receiver, and AI runners.
+- **Eshan / Canonical Backend:** Owns persistence, PostGIS spatial indexing, road map-matching, aggregation, REST APIs, WebSocket, Supabase Storage, database migrations, and backend test suites.
+- **Integration Adapter:** Owns AI $\to$ Backend translation (`BackendIngestAdapter`).
+- **Frontend:** Owns presentation, vector maps, deck.gl overlays, filter state, and inspection drawers.
+- **Strict Directive:** No duplicate in-memory backend, duplicate spatial engine, or competing GPS table may ever be introduced.
 
 ---
 
-## 4. Architectural Decision References
-- All architectural decisions are formally documented in [`docs/DECISIONS.md`](DECISIONS.md) (ADR-001 through ADR-015).
+## 4. Backlog & Next Steps
+- P1: Trip replay time scrubber on the dashboard.
+- P1: Work-order export for municipal repair crews.
+- P1: Fleet sensing coverage heatmap.
+- P2: Missing infrastructure reasoning (zebra crossings, lane markings).

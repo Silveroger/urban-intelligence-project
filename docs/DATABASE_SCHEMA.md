@@ -5,6 +5,8 @@ The persistent data store for the platform is **PostgreSQL 17.6** with the **Pos
 PostGIS spatial functions and geometry types reside in the **`gis` schema** (e.g. `gis.ST_MakePoint`, `gis.ST_DWithin`, `gis.ST_Distance`, `gis.ST_AsGeoJSON`). Geometries use SRID `4326` (WGS84).
 The backend async engine connects with `search_path: public, gis` to ensure transparent PostGIS type and function resolution.
 
+All spatial coordinates at database and API boundaries strictly adhere to the **GeoJSON Standard: `[longitude, latitude]`**.
+
 ---
 
 ## 2. Core Relational & Spatial Entities
@@ -70,7 +72,7 @@ CREATE TABLE observations (
     severity SMALLINT CHECK (severity BETWEEN 1 AND 4),
     evidence_uri VARCHAR(512),
     observed_at TIMESTAMPTZ NOT NULL,
-    metadata JSONB,
+    metadata JSONB, -- Stores AI diagnostic metrics (risk_score, breadth_cm, depth_cm, dimensions, risk_assessment)
     status VARCHAR(32) DEFAULT 'confirmed', -- confirmed or quarantined
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

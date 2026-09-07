@@ -8,9 +8,10 @@ src/
 ├── components/          # Focused, reusable presentation components
 │   ├── Analytics/       # Charts, historical trends, traffic stats
 │   ├── Cards/           # Metric cards (KPIs, status badges)
-│   ├── Details/         # Inspection drawer panels (Road, Event, Incident)
+│   ├── Details/         # Inspection drawer panels (Road, Event, Incident, Civil Hazards)
 │   ├── Map/             # Google Maps, Advanced Markers, Polylines, DeckHeatmapOverlay
-│   └── Sidebar/         # Header, navigation, and FilterPanel
+│   ├── Sidebar/         # Header, navigation, and FilterPanel
+│   └── VideoHub/        # Edge Video Processing Hub modal (VideoProcessingHub.tsx)
 ├── config/              # Centralized configuration (maps.ts, map IDs)
 ├── data/                # Typed mock datasets (mockRoadSegments, mockEvents, etc.)
 ├── pages/               # Top-level view composition (Dashboard.tsx)
@@ -102,7 +103,19 @@ export function geoJsonToGooglePath(coords: [number, number][]): { lat: number; 
 
 ---
 
-## 6. Road-Health Color Thresholds
+## 6. Edge Video Processing Hub & Inspector Panels
+- **Video Processing Hub (`src/components/VideoHub/VideoProcessingHub.tsx`):**  
+  Accessible via the header button on `Dashboard.tsx`. Operators can initiate Edge AI perception scanning on test or uploaded dashcam videos, select active detection models (potholes, traffic density, plate OCR, pedestrians), and monitor real-time inference progress percentage.
+- **Civil Hazard Inspector (`src/components/Details/Inspector.tsx`):**  
+  When an operator clicks a road defect event, the inspector renders:
+  - Defect category, timestamp, bus ID, and confidence percentage.
+  - Civil engineering hazard metrics (estimated breadth in cm, depth in cm, and bounding area).
+  - Risk assessment narrative and severity rating ($1-4$).
+  - Cropped keyframe evidence image with signed URL caching.
+
+---
+
+## 7. Road-Health Color Thresholds
 The frontend maps backend `condition_score` values ($0-100$) to visual status colors via `src/utils/roadColor.ts`:
 
 | Condition Score Range | Status Tier | Color Name | Hex Code | Visual Meaning |
@@ -114,11 +127,11 @@ The frontend maps backend `condition_score` values ($0-100$) to visual status co
 
 ---
 
-## 7. Performance & Error Handling Guidelines
+## 8. Performance & Error Handling Guidelines
 - **Stable Keys:** Always use unique entity IDs (`segment_id`, `event_id`, `bus_id`, `incident_id`) as React `key` props. Never use array index for dynamic collections.
 - **Isolated Telemetry:** Real-time bus marker position updates (`BUS_TELEMETRY`) update the bus state array and marker coordinates without triggering re-rendering of static road polyline layers.
 - **Real-Time Map & Incident Sync:** When `SEGMENT_UPDATE` frames arrive, update the matching segment's `condition_score` and defect counts in place, instantly updating polyline color tiers. When `NEW_INCIDENT` frames arrive, prepend to active incidents and increment badge counts without full-page reloads.
 - **WebSocket Reconnection & Heartbeats:** `src/services/websocket.ts` implements exponential backoff reconnection (1s, 2s, 5s, 10s, max 30s) and 30-second ping/pong heartbeats, ensuring persistent streaming through network blips or server restarts.
 - **HTTP 503 Database Error Gateway:** The backend catches all database drops and emits standardized HTTP 503 `DATABASE_CONNECTION_ERROR`. The frontend Axios interceptor surfaces a non-blocking toast alert rather than failing uncaught.
 - **Memoized Calculations:** Use `useMemo` for computationally expensive filtering operations over large event datasets.
-- **Contract Compatibility:** All critical integration discrepancies (BUG-001 GeoJSON format, BUG-002 severity metric, BUG-004 WebSocket hookup, BUG-008 ID formatting, BUG-010 reconnect backoff, BUG-024 canonical road geometries) are verified resolved. See [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md).
+- **Contract Compatibility:** All critical integration discrepancies (BUG-001 GeoJSON format, BUG-002 severity metric, BUG-004 WebSocket hookup, BUG-008 ID formatting, BUG-010 reconnect backoff, BUG-024 canonical road geometries) are verified resolved.

@@ -9,26 +9,62 @@
 
 ---
 
-## 2. Frontend Setup (`urban-dashboard`)
+## 2. Zero-Friction Local Development (Recommended)
 
-1. **Install Dependencies:**
-   ```bash
-   npm install
-   ```
+Launch both the Backend and Frontend with a single command from the repository root (`urban-dashboard/`):
 
-2. **Configure Environment Variables:**
-   Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
+```powershell
+.\start-dev.ps1
+```
 
-3. **Start Development Server:**
-   ```bash
-   npm run dev
-   ```
-   The application runs at `http://localhost:5173`.
+This automated launcher:
+1. Spawns the **FastAPI Backend** in a dedicated window at [http://localhost:8000](http://localhost:8000).
+2. Spawns the **React GIS Dashboard** in a dedicated window at [http://localhost:5173](http://localhost:5173).
+3. Automatically launches the live dashboard in your default browser.
 
-### Frontend Environment Variables
+### Verification Endpoints:
+- **Dashboard:** [http://localhost:5173](http://localhost:5173)
+- **API Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **System Health:** [http://localhost:8000/health](http://localhost:8000/health)
+- **Database & PostGIS Health:** [http://localhost:8000/health/database](http://localhost:8000/health/database)
+
+---
+
+## 3. Dedicated Subsystem Launchers
+
+If you prefer launching subsystems individually:
+
+### Backend Launcher (`urban-dashboard/`)
+```powershell
+.\start-backend.ps1
+```
+*(Or on cmd.exe: `.\start-backend.bat`)*
+
+Or run manually with Python:
+```bash
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend Launcher (`urban-dashboard/`)
+```powershell
+.\start-frontend.ps1
+```
+*(Or on cmd.exe: `.\start-frontend.bat`)*
+
+Or run manually with npm:
+```bash
+npm run dev
+```
+
+---
+
+## 4. Environment Variables Configuration
+
+### 4.1 Frontend Environment (`.env` in repository root)
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -37,84 +73,47 @@
 | `VITE_API_BASE_URL` | Yes | `http://localhost:8000` | Base URL for FastAPI backend REST endpoints. |
 | `VITE_USE_MOCK` | Yes | `false` | When `false` (default for live deployment), connects to FastAPI backend and Supabase PostGIS. When `true`, uses local fixtures in `src/data/` for offline development. |
 
----
+### 4.2 Backend Environment (`backend/.env`)
+Copy `backend/.env.example` to `backend/.env`:
+```bash
+cd backend
+cp .env.example .env
+```
 
-## 3. Backend Setup (`backend/`)
-
-1. **Create and Activate Virtual Environment:**
-   ```bash
-   cd backend
-   python -m venv .venv
-
-   # On Windows (PowerShell):
-   .venv\Scripts\Activate.ps1
-
-   # On macOS/Linux:
-   source .venv/bin/activate
-   ```
-
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure Backend Environment Variables:**
-   Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   > [!IMPORTANT]
-   > **Supabase Regional IPv4 Session Pooler Requirement (Windows / IPv4 Networks):**
-   > Direct Supabase database hostnames (`db.<project-ref>.supabase.co`) resolve exclusively via IPv6 (AAAA) records in AWS regions. On Windows or environments without IPv6 routing, connections fail with `[Errno 11001] getaddrinfo failed`.
-   > Always use the regional IPv4 Session Pooler host in `DATABASE_URL` (e.g., `postgresql+asyncpg://postgres.[project-ref]:[PASS]@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres`).
-
-4. **Run Database Migration and Schema Reconciliation:**
-   a. In the Supabase SQL Editor, execute [`backend/scripts/migrate_to_documented_schema.sql`](../backend/scripts/migrate_to_documented_schema.sql) to provision canonical tables (`routes`, `trips`) and the non-destructive compatibility view `gps_records`.
-   b. Run the legacy constraint cleanup script to safely drop superseded NOT NULL constraints while preserving historical rows:
-   ```bash
-   python scripts/drop_legacy_notnull.py
-   ```
-   c. Seed the database with OSM-derived canonical Chandigarh road network, buses, defect observations, and incidents:
-   ```bash
-   python scripts/seed_chandigarh_demo.py
-   ```
-
-5. **Verify Database Connectivity & Run Automated Tests:**
-   ```bash
-   python scripts/test_connection.py
-   pytest -v
-   ```
-   All 40 automated unit, API, schema, and live integration tests should pass (100%).
-
-6. **Start Backend Server:**
-   ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-   - OpenAPI Docs: `http://localhost:8000/docs`
-   - ReDoc: `http://localhost:8000/redoc`
-   - Health Check: `http://localhost:8000/health`
-   - Database Health Check: `http://localhost:8000/health/database`
-
-### Backend Environment Variables
+`backend/app/core/config.py` automatically resolves `backend/.env` regardless of whether the process is launched from `urban-dashboard/` or `backend/`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `ENVIRONMENT` | Yes | `development` | Deployment environment (`development`, `production`). |
-| `PORT` | Yes | `8000` | HTTP and WebSocket server port. |
-| `HOST` | Yes | `0.0.0.0` | Server host binding. |
-| `DATABASE_URL` | Yes | — | Async PostgreSQL connection string (`postgresql+asyncpg://...`). |
-| `POSTGIS_SCHEMA` | Yes | `gis` | PostgreSQL schema where PostGIS extension is installed. |
-| `SUPABASE_URL` | Yes | — | Supabase project URL. |
-| `SUPABASE_ANON_KEY` | Yes | — | Supabase public anonymous API key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Supabase service role key (backend server only). |
-| `SUPABASE_STORAGE_BUCKET` | Yes | `road-evidence` | Supabase Storage bucket for defect and incident media. |
-| `MAP_MATCH_MAX_DISTANCE_METERS`| No | `25.0` | Maximum search radius for snapping GPS points to road segments. |
-| `CONFIDENCE_THRESHOLD` | No | `0.50` | Minimum confidence score to confirm and score observations. |
-| `CORS_ORIGINS` | Yes | `http://localhost:5173` | Comma-separated allowed frontend origins. |
+| `ENVIRONMENT` | Yes | `development` | Deployment environment name. |
+| `PORT` | Yes | `8000` | Port for the FastAPI server. |
+| `HOST` | Yes | `0.0.0.0` | Host binding for Uvicorn. |
+| `SUPABASE_URL` | Yes | — | Supabase project URL (`https://[REF].supabase.co`). |
+| `SUPABASE_ANON_KEY` | Yes | — | Public anonymous API key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Administrative service role key (backend only). |
+| `SUPABASE_STORAGE_BUCKET` | Yes | `road-evidence` | Private Supabase Storage bucket for defect and incident media. |
+| `DATABASE_URL` | Yes | — | Async PostgreSQL connection string with regional pooler. |
+| `POSTGIS_SCHEMA` | Yes | `gis` | Schema hosting PostGIS functions (`gis`). |
+| `MAP_MATCH_MAX_DISTANCE_METERS`| No | `25.0` | Distance threshold in meters for snapping GPS observations to road centerlines. |
+| `CONFIDENCE_THRESHOLD` | No | `0.50` | Minimum confidence score ($0.0-1.0$) to confirm AI observations. |
+| `CORS_ORIGINS` | No | `http://localhost:5173,http://localhost:3000` | Permitted frontend origins. |
+
+> [!IMPORTANT]
+> **Supabase Regional IPv4 Session Pooler Requirement (Windows / IPv4 Networks):**
+> Direct Supabase database hostnames (`db.<project-ref>.supabase.co`) resolve exclusively via IPv6 (AAAA) records in AWS regions. On Windows or environments without IPv6 routing, connections fail with `[Errno 11001] getaddrinfo failed`.
+> Always use the regional IPv4 Session Pooler host in `DATABASE_URL` (e.g., `postgresql+asyncpg://postgres.[project-ref]:[PASS]@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres`).
 
 ---
 
-## 4. Key Security Rules
-- **Never commit `.env`:** Keep `.env` strictly in `.gitignore` in both root and `backend/`.
-- **API Key Restrictions:** Configure HTTP referrer restrictions in Google Cloud Console (`localhost:5173/*` and production domains).
-- **Service Role Key:** The `SUPABASE_SERVICE_ROLE_KEY` has administrative access and must never be exposed to frontend builds or client code.
+## 5. Testing & Verification
+
+Run the full automated test suite:
+```bash
+pytest -v
+```
+All **47 automated unit, API, schema, AI integration, and live database integration tests** should pass (100% pass rate).
+
+Verify frontend typecheck and build:
+```bash
+npm run build
+```
+Should compile cleanly with zero TypeScript errors.

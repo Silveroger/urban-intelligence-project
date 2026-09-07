@@ -10,9 +10,51 @@
 
 ---
 
-## 2. REST Endpoints
+## 2. System Endpoints
 
-### 2.1 Road Segments GeoJSON
+### 2.1 System Health
+- **Endpoint:** `GET /health`
+- **Response Status:** `200 OK`
+- **Response Schema:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-09-08T00:30:00+00:00",
+  "environment": "development"
+}
+```
+
+### 2.2 Database & PostGIS Health
+- **Endpoint:** `GET /health/database`
+- **Response Status:** `200 OK`
+- **Response Schema:**
+```json
+{
+  "timestamp": "2026-09-08T00:30:00+00:00",
+  "database": {
+    "status": "connected",
+    "postgis_version": "POSTGIS=\"3.3.7 a0c7967\" [EXTENSION] PGSQL=\"170\" GEOS=\"3.14.1-CAPI-1.20.5\" PROJ=\"9.7.1\" LIBXML=\"2.15.1\" LIBJSON=\"0.18\" LIBPROTOBUF=\"1.5.2\" WAGYU=\"0.5.0 (Internal)\"",
+    "postgis_schema": "gis",
+    "tables_found": [
+      "buses",
+      "gps_points",
+      "gps_records",
+      "incidents",
+      "observations",
+      "road_segments",
+      "routes",
+      "segment_history",
+      "trips"
+    ]
+  }
+}
+```
+
+---
+
+## 3. Road Network & Segment APIs
+
+### 3.1 Road Segments GeoJSON
 - **Endpoint:** `GET /api/v1/segments/geojson`
 - **Query Parameters:**
   - `format`: Optional. `'geojson'` (default) or `'flat'`.
@@ -72,7 +114,7 @@
 ]
 ```
 
-### 2.2 Road Segment Details & History
+### 3.2 Road Segment Details & History
 - **Endpoint:** `GET /api/v1/segments/{segment_id}`
 - **Endpoint:** `GET /api/v1/segments/{segment_id}/history`
 - **History Response Schema:**
@@ -99,7 +141,11 @@
 ]
 ```
 
-### 2.3 Road Events & Defect Observations
+---
+
+## 4. Events & Defect Observations
+
+### 4.1 Query Confirmed Events
 - **Endpoint:** `GET /api/v1/events`
 - **Query Parameters:**
   - `event_type`: Filter by type (`road_defect`, `waterlogging`, `traffic`, `incident`).
@@ -128,8 +174,9 @@
 ]
 ```
 
-### 2.4 AI Observation Ingestion
+### 4.2 Ingest AI Observation
 - **Endpoint:** `POST /api/v1/observations`
+- **Status Code:** `201 Created`
 - **Description:** Ingests AI edge perception observation. Confirms or quarantines event based on confidence threshold ($0.50$), triggers PostGIS map-matching, updates segment condition score, and broadcasts live event.
 - **Request Body:** Conforms to [`docs/AI_CONTRACT.md`](AI_CONTRACT.md).
 - **Extended Fields:** Accepts optional AI hazard diagnostics: `risk_score` (0-100), `risk_level` (`low`/`moderate`/`high`/`critical`), `breadth_cm`, `depth_cm`, `dimensions` (object with estimated area and bounding metrics), `risk_assessment` (civil engineering severity analysis), and `metadata` (JSONB dictionary).
@@ -145,9 +192,12 @@
 }
 ```
 
-### 2.5 Traffic Incidents
+---
+
+## 5. Traffic Incidents
+
+### 5.1 Query Incidents
 - **Endpoint:** `GET /api/v1/incidents`
-- **Endpoint:** `POST /api/v1/incidents`
 - **Query Parameters:** `status` (`open`, `resolved`), `limit`, `offset`.
 - **Response Schema:**
 ```json
@@ -172,12 +222,32 @@
   }
 ]
 ```
-> [!NOTE]
-> `incident_score` is computed deterministically as `round(severity * 25.0, 1)`. `evidence_uri` is dynamically generated as a 1-hour signed URL from Supabase Storage (`road-evidence` bucket) upon response serialization.
 
-### 2.6 Bus Fleet Telemetry
+### 5.2 Create Incident
+- **Endpoint:** `POST /api/v1/incidents`
+- **Status Code:** `201 Created`
+- **Request Schema:**
+```json
+{
+  "incident_id": "inc_20260908_001",
+  "incident_type": "illegal_parking",
+  "severity": 2,
+  "latitude": 30.7350,
+  "longitude": 76.7820,
+  "vehicle_track_id": "trk_901",
+  "plate_text": "CH01AB1234",
+  "plate_confidence": 0.95,
+  "description": "Vehicle blocking designated bus corridor",
+  "timestamp": "2026-09-08T00:30:00+05:30"
+}
+```
+
+---
+
+## 6. Fleet Buses & Telemetry
+
+### 6.1 Query Buses
 - **Endpoint:** `GET /api/v1/buses`
-- **Endpoint:** `POST /api/v1/telemetry`
 - **Response Schema:**
 ```json
 [
@@ -193,7 +263,25 @@
 ]
 ```
 
-### 2.7 City Infrastructure Analytics Summary
+### 6.2 Ingest Telemetry
+- **Endpoint:** `POST /api/v1/telemetry`
+- **Status Code:** `201 Created`
+- **Request Schema:**
+```json
+{
+  "bus_id": "TEST-BUS-001",
+  "latitude": 30.7333,
+  "longitude": 76.7794,
+  "speed_kmh": 32.5,
+  "heading_deg": 142.0,
+  "timestamp": "2026-09-08T00:30:00+05:30"
+}
+```
+
+---
+
+## 7. City Infrastructure Analytics Summary
+
 - **Endpoint:** `GET /api/v1/analytics/summary`
 - **Description:** Returns high-level citywide infrastructure health, defect counts, active fleet, and condition distribution tiers.
 - **Response Schema:**
@@ -214,10 +302,13 @@
 }
 ```
 
-### 2.8 Edge Video Processing Pipeline
+---
+
+## 8. Edge Video Processing Pipeline
+
+### 8.1 Video Processing Status
 - **Endpoint:** `GET /api/v1/ingest/video/status` (alias `/api/v1/video/status`)
-  - **Description:** Returns current execution status, progress percentage, current/total frames, and last result of the edge video perception pipeline.
-  - **Response Schema:**
+- **Response Schema:**
 ```json
 {
   "is_running": false,
@@ -228,10 +319,11 @@
   "last_result": null
 }
 ```
+
+### 8.2 Trigger Video Processing
 - **Endpoint:** `POST /api/v1/ingest/video/process` (alias `/api/v1/video/process`)
-  - **Description:** Initiates asynchronous Edge AI perception scanning on an uploaded video or synthetic sample. Detections and telemetry are normalized via `BackendIngestAdapter` and ingested directly into canonical PostGIS tables.
-  - **Form Fields:** `bus_id` (string), `use_sample` (boolean), `show_window` (boolean), `enabled_detectors` (JSON string map of detector categories), `video_file` (optional multipart file), `gps_file` (optional multipart file).
-  - **Response Schema:**
+- **Form Fields:** `bus_id` (string), `use_sample` (boolean), `show_window` (boolean), `enabled_detectors` (JSON string map of detector categories), `video_file` (optional multipart file), `gps_file` (optional multipart file).
+- **Response Schema:**
 ```json
 {
   "status": "processing_started",
@@ -245,15 +337,15 @@
 
 ---
 
-## 3. WebSocket Protocol (`/ws/live`)
+## 9. WebSocket Protocol (`/ws/live`)
 
-The live streaming endpoint `/ws/live` broadcasts real-time telemetry, defect events, incidents, and segment metric changes.
+Clients connect via `ws://localhost:8000/ws/live` to receive real-time streams and send heartbeats.
 
-### 3.1 Client Heartbeat (Ping / Pong)
+### 9.1 Client Heartbeat (Ping / Pong)
 - Client sends: `"ping"`
 - Server responds: `{"type": "PONG"}`
 
-### 3.2 Live Bus Telemetry Frame (`BUS_TELEMETRY`)
+### 9.2 Live Bus Telemetry Frame (`BUS_TELEMETRY`)
 Broadcast upon receiving vehicle GPS coordinates via `POST /api/v1/telemetry`:
 ```json
 {
@@ -269,7 +361,7 @@ Broadcast upon receiving vehicle GPS coordinates via `POST /api/v1/telemetry`:
 }
 ```
 
-### 3.3 Live Defect Event Frame (`NEW_EVENT`)
+### 9.3 Live Defect Event Frame (`NEW_EVENT`)
 Broadcast when an AI observation with `confidence >= 0.50` is confirmed:
 ```json
 {
@@ -291,7 +383,7 @@ Broadcast when an AI observation with `confidence >= 0.50` is confirmed:
 }
 ```
 
-### 3.4 Live Incident Frame (`NEW_INCIDENT`)
+### 9.4 Live Incident Frame (`NEW_INCIDENT`)
 Broadcast immediately when a new traffic violation/incident is created:
 ```json
 {
@@ -317,7 +409,7 @@ Broadcast immediately when a new traffic violation/incident is created:
 }
 ```
 
-### 3.5 Live Segment Update Frame (`SEGMENT_UPDATE`)
+### 9.5 Live Segment Update Frame (`SEGMENT_UPDATE`)
 Broadcast whenever a road segment's metrics are recalculated:
 ```json
 {
@@ -335,13 +427,15 @@ Broadcast whenever a road segment's metrics are recalculated:
 
 ---
 
-## 4. Error Response Schema
+## 10. Error Handling Contract
+
+All error responses strictly adhere to the standard schema:
 ```json
 {
   "error": {
     "code": "RESOURCE_NOT_FOUND",
     "message": "Road segment with ID 'seg_999' was not found.",
-    "timestamp": "2026-08-31T16:15:12+05:30"
+    "timestamp": "2026-09-08T00:30:00+05:30"
   }
 }
 ```
