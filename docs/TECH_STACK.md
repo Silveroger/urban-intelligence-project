@@ -5,7 +5,7 @@ This document specifies the authoritative technologies, libraries, runtime envir
 
 ---
 
-## 2. Frontend Technologies (`urban-dashboard`)
+## 2. Frontend Technologies (`src/`)
 
 | Category | Technology | Version | Purpose & Architectural Role |
 |---|---|---|---|
@@ -17,34 +17,51 @@ This document specifies the authoritative technologies, libraries, runtime envir
 | **Data Visualization** | `@deck.gl/google-maps` & `@deck.gl/aggregation-layers` | `^9.3.11` | High-performance WebGL/WebGPU overlay on Google Maps for rendering large-scale aggregate heatmaps (traffic density and defect concentrations). |
 | **Charting Library** | `Recharts` | `^3.10.1` | Responsive SVG charts for road condition degradation trends, traffic statistics, and historical observation graphs. |
 | **HTTP Client** | `Axios` | `^1.20.0` | Promise-based REST client for structured backend API requests, request/response interceptors, and error translation. |
-| **Iconography** | `Lucide React` | `^1.37.0` | Comprehensive, consistent icon library for navigation, status indicators, and drawer controls. |
+| **Iconography** | `Lucide React` | `^1.37.0` | Consistent icon library for navigation, status indicators, and inspection drawer controls. |
 | **Styling & Design Tokens** | `Tailwind CSS` & `Vanilla CSS` | `^3.6.0` (tailwind-merge) | Dark-mode design system, glassmorphic panels, CSS custom properties, and responsive layout utilities. |
 | **Code Quality & Linting** | `ESLint` & `typescript-eslint` | `^10.9.0` / `^8.67.0` | Static analysis, enforcement of React hooks rules, and project-wide TypeScript lint standards. |
 
 ---
 
-## 3. Backend & Data Infrastructure
+## 3. Backend & Data Infrastructure (`backend/`)
 
-| Category | Technology | Target Version | Purpose & Architectural Role |
+| Category | Technology | Pinned Version | Purpose & Architectural Role |
 |---|---|---|---|
-| **Application Server** | `FastAPI` (Python) | `3.11+` | Asynchronous REST endpoints and WebSocket server for high-throughput metadata ingestion and live client broadcasts. |
-| **Spatial Database** | `PostgreSQL` + `PostGIS` | `15+` / `3.3+` | Authoritative persistent storage for spatial geometry (`GEOMETRY(LineString, 4326)`), spatial indexing (GiST), road matching, and multi-pass observation aggregation. |
-| **Object Storage** | `S3-Compatible / MinIO` | Latest | Secure, scalable storage for evidence media, cropped defect frames, and incident clips referenced by URI. |
-| **Transport Layer** | `REST (JSON) + WebSocket` | `HTTP/2` / `WSS` | REST for initial state hydration and historical queries; WebSocket (`/ws/live`) for real-time telemetry and event updates. |
+| **Web Framework** | `FastAPI` | `>=0.110.0,<0.120.0` | Asynchronous REST endpoints, automated OpenAPI/Swagger documentation, and request validation. |
+| **ASGI Web Server** | `Uvicorn[standard]` | `>=0.28.0,<0.35.0` | Lightning-fast ASGI production server handling concurrent async HTTP and WebSocket requests. |
+| **Validation & Settings** | `Pydantic` & `Pydantic-Settings` | `>=2.6.0,<3.0.0` | Schema validation, environment variable parsing, and type coercion. |
+| **ORM / Query Engine** | `SQLAlchemy[asyncio]` | `>=2.0.28,<2.1.0` | Async relational mapping, connection pooling, and transactional session management. |
+| **Database Driver** | `asyncpg` | `>=0.31.0,<0.32.0` | High-performance asynchronous PostgreSQL database client with `search_path="public, gis"`. |
+| **Spatial Extension** | `GeoAlchemy2` | `>=0.14.0,<0.16.0` | Spatial geometry integration with SQLAlchemy, supporting WKB/WKT and PostGIS types. |
+| **Database & Storage SDK** | `Supabase` (Python SDK) | `>=2.3.0,<2.14.0` | PostgreSQL hosting, PostGIS geospatial functions, and Storage client management. |
+| **Connection Pooling** | `Supabase Regional IPv4 Pooler` | AWS Seoul (ap-northeast-2) | Dedicated IPv4 session pooler (`aws-0-ap-northeast-2.pooler.supabase.com:5432`) resolving IPv6 DNS lookup failures on Windows (`[Errno 11001]`). |
+| **Spatial Database Engine** | `PostgreSQL + PostGIS` | `17.6` / `3.3.7` | Authoritative persistent storage with PostGIS extension and types hosted in dedicated `gis` schema. |
+| **Object Storage** | `Supabase Storage` | Latest (`road-evidence`) | Secure storage for defect crop frames and incident video clips with dynamic 1-hour signed URL access. |
+| **Real-time Protocol** | `WebSockets` | `>=12.0,<14.0` | Native ASGI WebSocket streaming at `/ws/live` supporting `BUS_TELEMETRY`, `NEW_EVENT`, `NEW_INCIDENT`, and `SEGMENT_UPDATE`. |
+| **Testing Framework** | `pytest` & `pytest-asyncio` | `>=8.0.0` / `>=0.23.5` | Async unit, route, schema, AI adapter, and live database integration test suite (47/47 passing tests). |
 
 ---
 
-## 4. Edge & Sensing Stack
+## 4. Edge AI Perception & Hardware Stack (`ai/`)
 
-| Category | Technology | Purpose & Architectural Role |
-|---|---|---|
-| **Perception Models** | Specialized Computer Vision (YOLO/Custom) | Road defect detection (potholes, cracks), waterlogging detection, vehicle tracking, and optical character recognition (OCR) for license plates. |
-| **Telemetry Hardware** | GPS Receiver + Camera Sensors | Captures vehicle coordinates, heading, and synchronized visual frames from public transport fleet buses. |
-| **Edge Pre-Processing** | Python / C++ Edge Runtime | Samples video frames, executes lightweight inference or packages high-priority events, and uploads structured observation metadata. |
+| Category | Technology | Pinned / Version | Purpose & Architectural Role |
+|---|---|---|---|
+| **Computer Vision Core** | `OpenCV (opencv-python)` | `>=4.9.0` | Frame extraction, image preprocessing, bounding box cropping, and visual annotations. |
+| **Object Detection Models** | `Ultralytics (YOLOv8)` | `>=8.1.0` | Real-time object detection models for road defects, vehicles, pedestrians, and infrastructure signboards. |
+| **Deep Learning Framework** | `PyTorch & Torchvision` | `>=1.8.0` / `>=0.9.0` | Tensor computation and GPU-accelerated inference backend for perception models. |
+| **Optical Character Recognition**| `pytesseract` | `>=0.3.10` | License plate character extraction and confidence score generation. |
+| **Video Decoding** | `PyAV (av)` | `>=11.0.0` | Fast keyframe seeking and video stream demuxing. |
+| **Spatial Processing** | `Shapely` | `>=2.0.0` | 2D geometric operations, bounding box intersections, and spatial metrics calculation. |
+| **Numerical Processing** | `NumPy` | `>=1.26.0` | Matrix operations, image array manipulation, and metric calculations. |
+| **Telemetry Ingestion** | Python `socket` (UDP) | Built-in | Real-time hardware telemetry listener for ESP32 and GPS receiver packets. |
+| **Integration Adapter** | `BackendIngestAdapter` | `ai/adapter/` | Translates raw detection dictionaries into canonical schemas and dispatches to FastAPI backend. |
 
 ---
 
 ## 5. Technology Constraints & Decisions
-- **No Deprecated Map Layers:** Google Maps deprecated `HeatmapLayer` is explicitly forbidden; `@deck.gl/google-maps` is the designated heatmap technology (see [DECISIONS.md](file:///c:/Users/Eshan%20Sharma/Desktop/sih%20project/urban-dashboard/docs/DECISIONS.md)).
-- **Coordinate Transformations:** All spatial coordinates are stored and transmitted in GeoJSON `[longitude, latitude]` (EPSG:4326) and mapped to `{lat, lng}` solely at Google Maps rendering boundaries.
-- **Provider Abstraction:** The frontend consumes data through `services/api.ts` and `services/websocket.ts`, enabling seamless switching between mock mode (`VITE_USE_MOCK=true`) and live backend endpoints without component modification.
+- **No Deprecated Map Layers:** Google Maps deprecated `HeatmapLayer` is explicitly forbidden; `@deck.gl/google-maps` is the designated heatmap technology.
+- **Coordinate Transformations & Canonical Geometries:** All spatial coordinates are stored and transmitted in GeoJSON `[longitude, latitude]` (EPSG:4326) and mapped to `{lat, lng}` solely at Google Maps rendering boundaries. Road centerlines use OpenStreetMap-derived canonical geometries (`chandigarh_roads_canonical.geojson`) with 13-38 vertices per segment.
+- **PostGIS `gis` Schema:** PostGIS functions are hosted under the `gis` schema. Engine connection args configure `search_path="public, gis"` automatically.
+- **Supabase Regional IPv4 Session Pooler:** On Windows or environments without native IPv6 routing, the pooler hostname (`aws-0-ap-northeast-2.pooler.supabase.com:5432`) is mandatory to prevent `[Errno 11001] getaddrinfo failed` errors.
+- **Canonical GPS Architecture:** The physical storage table is `public.gps_points`. `public.gps_records` is maintained as a seamless, non-destructive compatibility `VIEW` (`SELECT * FROM public.gps_points;`). Creating duplicate tables or fragmented GPS pipelines is strictly forbidden.
+- **Provider Abstraction & Live Default:** The frontend consumes data through `services/api.ts` and `services/websocket.ts`. Live production mode is enabled via `VITE_USE_MOCK=false`.

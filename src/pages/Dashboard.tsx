@@ -4,6 +4,8 @@ import { Inspector } from '../components/Details/Inspector';
 import { FilterPanel } from '../components/Sidebar/FilterPanel';
 import { KpiCards } from '../components/Cards/KpiCards';
 import { fetchSegments, fetchEvents, fetchIncidents, fetchBuses, fetchSegmentHistory } from '../services/api';
+import { connectLiveStream, disconnectLiveStream } from '../services/websocket';
+import type { WebSocketStatus } from '../services/websocket';
 import type { SegmentHistory } from '../services/api';
 import type { FilterState } from '../types/filters';
 import { DEFAULT_FILTERS } from '../types/filters';
@@ -11,6 +13,8 @@ import type { RoadSegment } from '../types/roadSegments';
 import type { Event } from '../types/events';
 import type { Incident } from '../types/incidents';
 import type { Bus } from '../types/buses';
+import { Video } from 'lucide-react';
+import { VideoProcessingHub } from '../components/VideoHub/VideoProcessingHub';
 
 export function Dashboard() {
   // ─── Backend data state ───
@@ -19,11 +23,13 @@ export function Dashboard() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [buses, setBuses] = useState<Bus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wsStatus, setWsStatus] = useState<WebSocketStatus>('disconnected');
 
   // ─── Selection state ───
   const [selectedRoad, setSelectedRoad] = useState<RoadSegment | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
   const [segmentHistory, setSegmentHistory] = useState<SegmentHistory>([]);
 
   // ─── Filter state ───
@@ -31,6 +37,7 @@ export function Dashboard() {
 
   // ─── UI state ───
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [videoHubOpen, setVideoHubOpen] = useState(false);
 
   // Load initial data via API provider
   useEffect(() => {
@@ -52,6 +59,72 @@ export function Dashboard() {
     }
     load();
     return () => { cancelled = true; };
+  }, []);
+
+  // Connect to live WebSocket stream for real-time telemetry and defect events
+  useEffect(() => {
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
+      return;
+    }
+
+    connectLiveStream({
+      onStatusChange: (status) => {
+        setWsStatus(status);
+      },
+      onBusTelemetry: (telemetry) => {
+        setBuses((prev) => {
+          const idx = prev.findIndex(
+            (b) => b.bus_id === telemetry.bus_id || (b.vehicle_number && b.vehicle_number === telemetry.bus_id)
+          );
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], ...telemetry };
+            return next;
+          }
+          return [...prev, telemetry];
+        });
+
+        setSelectedBus((curr) => {
+          if (curr && (curr.bus_id === telemetry.bus_id || curr.vehicle_number === telemetry.bus_id)) {
+            return { ...curr, ...telemetry };
+          }
+          return curr;
+        });
+      },
+      onNewEvent: (newEvent) => {
+        setEvents((prev) => {
+          if (prev.some((e) => e.event_id === newEvent.event_id)) return prev;
+          return [newEvent, ...prev];
+        });
+      },
+      onNewIncident: (newIncident) => {
+        setIncidents((prev) => {
+          if (prev.some((i) => i.incident_id === newIncident.incident_id)) return prev;
+          return [newIncident, ...prev];
+        });
+      },
+      onSegmentUpdate: (update) => {
+        setSegments((prev) =>
+          prev.map((s) => {
+            if (s.segment_id === update.segment_id) {
+              return {
+                ...s,
+                condition_score: update.condition_score ?? s.condition_score,
+                pothole_count: update.pothole_count,
+                waterlogging_count: update.waterlogging_count,
+                observation_count: update.observation_count,
+                last_updated: update.last_updated || s.last_updated,
+              };
+            }
+            return s;
+          })
+        );
+      },
+    });
+
+    return () => {
+      disconnectLiveStream();
+    };
   }, []);
 
   // Load segment history when a road is selected
@@ -79,12 +152,14 @@ export function Dashboard() {
     setSelectedRoad(road);
     setSelectedEvent(null);
     setSelectedIncident(null);
+    setSelectedBus(null);
   }, []);
 
   const handleSelectEvent = useCallback((event: Event) => {
     setSelectedEvent(event);
     setSelectedRoad(null);
     setSelectedIncident(null);
+    setSelectedBus(null);
     setSegmentHistory([]);
   }, []);
 
@@ -92,6 +167,15 @@ export function Dashboard() {
     setSelectedIncident(incident);
     setSelectedRoad(null);
     setSelectedEvent(null);
+    setSelectedBus(null);
+    setSegmentHistory([]);
+  }, []);
+
+  const handleSelectBus = useCallback((bus: Bus) => {
+    setSelectedBus(bus);
+    setSelectedRoad(null);
+    setSelectedEvent(null);
+    setSelectedIncident(null);
     setSegmentHistory([]);
   }, []);
 
@@ -99,6 +183,7 @@ export function Dashboard() {
     setSelectedRoad(null);
     setSelectedEvent(null);
     setSelectedIncident(null);
+    setSelectedBus(null);
     setSegmentHistory([]);
   }, []);
 
@@ -112,7 +197,64 @@ export function Dashboard() {
         </div>
         <div className="header-meta">
           <span className="meta-item">Region: <strong>Chandigarh</strong></span>
-          <span className="meta-item">Data: <strong>{import.meta.env.VITE_USE_MOCK === 'true' ? 'Mock' : 'Live'}</strong></span>
+          <span className="meta-item">
+            Source: <strong>{import.meta.env.VITE_USE_MOCK === 'true' ? 'Mock Data' : 'Live Supabase/FastAPI'}</strong>
+          </span>
+          {import.meta.env.VITE_USE_MOCK !== 'true' && (
+            <span
+              className="meta-item"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 500,
+                color:
+                  wsStatus === 'connected'
+                    ? '#22c55e'
+                    : wsStatus === 'connecting'
+                      ? '#f59e0b'
+                      : '#94a3b8',
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor:
+                    wsStatus === 'connected'
+                      ? '#22c55e'
+                      : wsStatus === 'connecting'
+                        ? '#f59e0b'
+                        : '#94a3b8',
+                  boxShadow: wsStatus === 'connected' ? '0 0 8px #22c55e' : undefined,
+                }}
+              />
+              {wsStatus === 'connected' ? 'WebSocket Live' : wsStatus === 'connecting' ? 'Connecting Live...' : 'Offline'}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setVideoHubOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#4f46e5',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginRight: '8px',
+              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.35)',
+            }}
+          >
+            <Video style={{ width: 14, height: 14 }} />
+            <span>Edge AI Video Hub</span>
+          </button>
           <button
             type="button"
             className="sidebar-toggle-btn"
@@ -153,9 +295,11 @@ export function Dashboard() {
               selectedRoad={selectedRoad}
               selectedEvent={selectedEvent}
               selectedIncident={selectedIncident}
+              selectedBus={selectedBus}
               onSelectRoad={handleSelectRoad}
               onSelectEvent={handleSelectEvent}
               onSelectIncident={handleSelectIncident}
+              onSelectBus={handleSelectBus}
             />
           )}
         </div>
@@ -165,11 +309,32 @@ export function Dashboard() {
             selectedRoad={selectedRoad}
             selectedEvent={selectedEvent}
             selectedIncident={selectedIncident}
+            selectedBus={selectedBus}
             segmentHistory={segmentHistory}
             onClose={handleCloseInspector}
           />
         </aside>
       </main>
+
+      {/* Edge Video Ingestion Modal */}
+      <VideoProcessingHub
+        isOpen={videoHubOpen}
+        onClose={() => setVideoHubOpen(false)}
+        filters={filters}
+        onNewEvent={(newEvent) => {
+          setEvents((prev) => {
+            if (prev.some((e) => e.event_id === newEvent.event_id)) return prev;
+            return [newEvent, ...prev];
+          });
+        }}
+        onNewIncident={(newIncident) => {
+          setIncidents((prev) => {
+            if (prev.some((i) => i.incident_id === newIncident.incident_id)) return prev;
+            return [newIncident, ...prev];
+          });
+        }}
+      />
     </div>
   );
 }
+

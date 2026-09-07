@@ -6,16 +6,61 @@
 - **Timestamps:** ISO-8601 with explicit timezone offset (`YYYY-MM-DDTHH:mm:ssZ` or `YYYY-MM-DDTHH:mm:ss+05:30`).
 - **Identifiers:** Stable string IDs (`event_id`, `segment_id`, `bus_id`, `incident_id`).
 - **Coordinate Standard:** GeoJSON format `[longitude, latitude]` for all API exchanges. The frontend transforms to Google Maps `{lat, lng}` only at rendering boundaries.
-- **Contract Changes:** Any breaking change must update this document and all affected consumers simultaneously.
+- **Contract Changes:** Any breaking change must update this document and all affected consumers simultaneously. See [`docs/BUGS_AND_DISCREPANCIES.md`](BUGS_AND_DISCREPANCIES.md) for active interface reconciliations.
 
 ---
 
-## 2. REST Endpoints
+## 2. System Endpoints
 
-### 2.1 Road Segments GeoJSON
-- **Endpoint:** `GET /api/v1/segments/geojson`
-- **Description:** Returns the complete road network with current aggregate condition scores.
+### 2.1 System Health
+- **Endpoint:** `GET /health`
+- **Response Status:** `200 OK`
 - **Response Schema:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-09-08T00:30:00+00:00",
+  "environment": "development"
+}
+```
+
+### 2.2 Database & PostGIS Health
+- **Endpoint:** `GET /health/database`
+- **Response Status:** `200 OK`
+- **Response Schema:**
+```json
+{
+  "timestamp": "2026-09-08T00:30:00+00:00",
+  "database": {
+    "status": "connected",
+    "postgis_version": "POSTGIS=\"3.3.7 a0c7967\" [EXTENSION] PGSQL=\"170\" GEOS=\"3.14.1-CAPI-1.20.5\" PROJ=\"9.7.1\" LIBXML=\"2.15.1\" LIBJSON=\"0.18\" LIBPROTOBUF=\"1.5.2\" WAGYU=\"0.5.0 (Internal)\"",
+    "postgis_schema": "gis",
+    "tables_found": [
+      "buses",
+      "gps_points",
+      "gps_records",
+      "incidents",
+      "observations",
+      "road_segments",
+      "routes",
+      "segment_history",
+      "trips"
+    ]
+  }
+}
+```
+
+---
+
+## 3. Road Network & Segment APIs
+
+### 3.1 Road Segments GeoJSON
+- **Endpoint:** `GET /api/v1/segments/geojson`
+- **Query Parameters:**
+  - `format`: Optional. `'geojson'` (default) or `'flat'`.
+- **Default Response Schema (`FeatureCollection`):**
+> [!NOTE]
+> All segment geometries returned by `/api/v1/segments/geojson` are OSM-derived canonical road centerlines (EPSG:4326 WGS84) with 13 to 38 vertices per segment, matching genuine Chandigarh road corridors.
 ```json
 {
   "type": "FeatureCollection",
@@ -27,7 +72,9 @@
         "type": "LineString",
         "coordinates": [
           [76.7794, 30.7333],
-          [76.7820, 30.7350]
+          [76.7820, 30.7350],
+          [76.7845, 30.7370],
+          [76.7870, 30.7390]
         ]
       },
       "properties": {
@@ -45,7 +92,29 @@
 }
 ```
 
-### 2.2 Road Segment Details & History
+- **Flat Format Response Schema (`?format=flat`):**
+```json
+[
+  {
+    "segment_id": "seg_chandigarh_001",
+    "name": "Jan Marg (Sector 16 to 17)",
+    "geometry": [
+      [76.7794, 30.7333],
+      [76.7820, 30.7350],
+      [76.7845, 30.7370],
+      [76.7870, 30.7390]
+    ],
+    "condition_score": 85.5,
+    "confidence": 0.92,
+    "pothole_count": 0,
+    "waterlogging_count": 0,
+    "observation_count": 14,
+    "last_updated": "2026-08-31T14:30:00+05:30"
+  }
+]
+```
+
+### 3.2 Road Segment Details & History
 - **Endpoint:** `GET /api/v1/segments/{segment_id}`
 - **Endpoint:** `GET /api/v1/segments/{segment_id}/history`
 - **History Response Schema:**
@@ -53,14 +122,18 @@
 [
   {
     "timestamp": "2026-08-20T10:00:00+05:30",
+    "date": "2026-08-20T10:00:00+05:30",
     "condition_score": 92.0,
+    "score": 92.0,
     "confidence": 0.88,
     "pothole_count": 0,
     "bus_id": "BUS-101"
   },
   {
     "timestamp": "2026-08-31T14:30:00+05:30",
+    "date": "2026-08-31T14:30:00+05:30",
     "condition_score": 85.5,
+    "score": 85.5,
     "confidence": 0.92,
     "pothole_count": 1,
     "bus_id": "BUS-104"
@@ -68,9 +141,18 @@
 ]
 ```
 
-### 2.3 Events
+---
+
+## 4. Events & Defect Observations
+
+### 4.1 Query Confirmed Events
 - **Endpoint:** `GET /api/v1/events`
-- **Query Parameters:** `event_type`, `road_segment_id`, `min_severity`, `limit`, `offset`
+- **Query Parameters:**
+  - `event_type`: Filter by type (`road_defect`, `waterlogging`, `traffic`, `incident`).
+  - `road_segment_id`: Filter by segment ID.
+  - `min_severity`: Filter by minimum severity integer ($1-4$).
+  - `limit`: Pagination limit (default $50$, max $200$).
+  - `offset`: Pagination offset (default $0$).
 - **Response Schema:**
 ```json
 [
@@ -85,72 +167,208 @@
     "class_name": "pothole_deep",
     "confidence": 0.89,
     "severity": 3,
+    "severity_label": "high",
     "frame_id": 4120,
     "evidence_uri": "https://storage.urban-intel.city/frames/evt_pot_001.jpg"
   }
 ]
 ```
 
-### 2.4 Incidents
+### 4.2 Ingest AI Observation
+- **Endpoint:** `POST /api/v1/observations`
+- **Status Code:** `201 Created`
+- **Description:** Ingests AI edge perception observation. Confirms or quarantines event based on confidence threshold ($0.50$), triggers PostGIS map-matching, updates segment condition score, and broadcasts live event.
+- **Request Body:** Conforms to [`docs/AI_CONTRACT.md`](AI_CONTRACT.md).
+- **Extended Fields:** Accepts optional AI hazard diagnostics: `risk_score` (0-100), `risk_level` (`low`/`moderate`/`high`/`critical`), `breadth_cm`, `depth_cm`, `dimensions` (object with estimated area and bounding metrics), `risk_assessment` (civil engineering severity analysis), and `metadata` (JSONB dictionary).
+- **Response Schema:**
+```json
+{
+  "status": "confirmed",
+  "event_id": "evt_pot_001",
+  "observation_id": "evt_pot_001",
+  "road_segment_id": "seg_chandigarh_001",
+  "quarantined": false,
+  "message": "Observation confirmed, matched to segment 'seg_chandigarh_001', and broadcasted."
+}
+```
+
+---
+
+## 5. Traffic Incidents
+
+### 5.1 Query Incidents
 - **Endpoint:** `GET /api/v1/incidents`
+- **Query Parameters:** `status` (`open`, `resolved`), `limit`, `offset`.
 - **Response Schema:**
 ```json
 [
   {
     "incident_id": "inc_001",
-    "timestamp": "2026-08-31T16:05:00+05:30",
-    "latitude": 30.7350,
-    "longitude": 76.7820,
     "incident_type": "illegal_parking",
     "severity": 2,
+    "severity_label": "moderate",
+    "incident_score": 50.0,
     "vehicle_track_id": "trk_901",
     "plate_text": "CH01AB1234",
     "plate_confidence": 0.94,
-    "evidence_uri": "https://storage.urban-intel.city/clips/inc_001.mp4"
+    "latitude": 30.7350,
+    "longitude": 76.7820,
+    "timestamp": "2026-08-31T16:05:00+05:30",
+    "road_segment_id": "seg_chandigarh_001",
+    "observation_id": null,
+    "evidence_uri": "https://[PROJECT-REF].supabase.co/storage/v1/object/sign/road-evidence/uploads/inc_001.mp4?token=...",
+    "description": "Vehicle blocking bus bay corridor",
+    "status": "open"
   }
 ]
 ```
 
-### 2.5 Bus Telemetry
+### 5.2 Create Incident
+- **Endpoint:** `POST /api/v1/incidents`
+- **Status Code:** `201 Created`
+- **Request Schema:**
+```json
+{
+  "incident_id": "inc_20260908_001",
+  "incident_type": "illegal_parking",
+  "severity": 2,
+  "latitude": 30.7350,
+  "longitude": 76.7820,
+  "vehicle_track_id": "trk_901",
+  "plate_text": "CH01AB1234",
+  "plate_confidence": 0.95,
+  "description": "Vehicle blocking designated bus corridor",
+  "timestamp": "2026-09-08T00:30:00+05:30"
+}
+```
+
+---
+
+## 6. Fleet Buses & Telemetry
+
+### 6.1 Query Buses
 - **Endpoint:** `GET /api/v1/buses`
 - **Response Schema:**
 ```json
 [
   {
-    "bus_id": "BUS-101",
+    "bus_id": "b78b87ce-880d-4560-bf8c-1ff43f324630",
+    "vehicle_number": "CH01-GA-3412",
     "latitude": 30.7345,
     "longitude": 76.7801,
     "heading_deg": 142.5,
-    "timestamp": "2026-08-31T16:15:00+05:30"
+    "timestamp": "2026-08-31T16:15:00+05:30",
+    "status": "active"
   }
 ]
 ```
 
----
-
-## 3. WebSocket Protocol (`/ws/live`)
-
-### 3.1 Live Bus Telemetry Frame
+### 6.2 Ingest Telemetry
+- **Endpoint:** `POST /api/v1/telemetry`
+- **Status Code:** `201 Created`
+- **Request Schema:**
 ```json
 {
-  "type": "BUS_TELEMETRY",
-  "payload": {
-    "bus_id": "BUS-101",
-    "latitude": 30.7348,
-    "longitude": 76.7805,
-    "heading_deg": 145.0,
-    "timestamp": "2026-08-31T16:15:05+05:30"
+  "bus_id": "TEST-BUS-001",
+  "latitude": 30.7333,
+  "longitude": 76.7794,
+  "speed_kmh": 32.5,
+  "heading_deg": 142.0,
+  "timestamp": "2026-09-08T00:30:00+05:30"
+}
+```
+
+---
+
+## 7. City Infrastructure Analytics Summary
+
+- **Endpoint:** `GET /api/v1/analytics/summary`
+- **Description:** Returns high-level citywide infrastructure health, defect counts, active fleet, and condition distribution tiers.
+- **Response Schema:**
+```json
+{
+  "total_segments": 11,
+  "average_condition_score": 72.8,
+  "critical_segments_count": 0,
+  "active_buses_count": 11,
+  "total_events_count": 20,
+  "total_incidents_count": 7,
+  "condition_distribution": {
+    "healthy": 6,
+    "moderate": 5,
+    "poor": 0,
+    "critical": 0
   }
 }
 ```
 
-### 3.2 Live Event Frame
+---
+
+## 8. Edge Video Processing Pipeline
+
+### 8.1 Video Processing Status
+- **Endpoint:** `GET /api/v1/ingest/video/status` (alias `/api/v1/video/status`)
+- **Response Schema:**
+```json
+{
+  "is_running": false,
+  "progress": 100.0,
+  "current_frame": 180,
+  "total_frames": 180,
+  "status_message": "Processing completed successfully!",
+  "last_result": null
+}
+```
+
+### 8.2 Trigger Video Processing
+- **Endpoint:** `POST /api/v1/ingest/video/process` (alias `/api/v1/video/process`)
+- **Form Fields:** `bus_id` (string), `use_sample` (boolean), `show_window` (boolean), `enabled_detectors` (JSON string map of detector categories), `video_file` (optional multipart file), `gps_file` (optional multipart file).
+- **Response Schema:**
+```json
+{
+  "status": "processing_started",
+  "bus_id": "BUS-101",
+  "video_path": "ai/sample_bus_camera.mp4",
+  "gps_path": "ai/sample_gps_track.json",
+  "show_window": false,
+  "enabled_detectors": {}
+}
+```
+
+---
+
+## 9. WebSocket Protocol (`/ws/live`)
+
+Clients connect via `ws://localhost:8000/ws/live` to receive real-time streams and send heartbeats.
+
+### 9.1 Client Heartbeat (Ping / Pong)
+- Client sends: `"ping"`
+- Server responds: `{"type": "PONG"}`
+
+### 9.2 Live Bus Telemetry Frame (`BUS_TELEMETRY`)
+Broadcast upon receiving vehicle GPS coordinates via `POST /api/v1/telemetry`:
+```json
+{
+  "type": "BUS_TELEMETRY",
+  "payload": {
+    "bus_id": "CH01-GA-3412",
+    "latitude": 30.7348,
+    "longitude": 76.7805,
+    "heading_deg": 145.0,
+    "timestamp": "2026-08-31T16:15:05+05:30",
+    "status": "active"
+  }
+}
+```
+
+### 9.3 Live Defect Event Frame (`NEW_EVENT`)
+Broadcast when an AI observation with `confidence >= 0.50` is confirmed:
 ```json
 {
   "type": "NEW_EVENT",
   "payload": {
     "event_id": "evt_pot_002",
-    "bus_id": "BUS-103",
+    "bus_id": "CH01-GA-3412",
     "timestamp": "2026-08-31T16:15:10+05:30",
     "latitude": 30.7360,
     "longitude": 76.7830,
@@ -159,20 +377,73 @@
     "class_name": "pothole",
     "confidence": 0.91,
     "severity": 2,
-    "evidence_uri": "https://storage.urban-intel.city/frames/evt_pot_002.jpg"
+    "severity_label": "moderate",
+    "evidence_uri": "https://[PROJECT-REF].supabase.co/storage/v1/object/sign/road-evidence/uploads/evt_pot_002.jpg?token=..."
+  }
+}
+```
+
+### 9.4 Live Incident Frame (`NEW_INCIDENT`)
+Broadcast immediately when a new traffic violation/incident is created:
+```json
+{
+  "type": "NEW_INCIDENT",
+  "payload": {
+    "incident_id": "inc_20260831_001",
+    "incident_type": "illegal_parking",
+    "severity": 2,
+    "severity_label": "moderate",
+    "incident_score": 50.0,
+    "vehicle_track_id": "trk_901",
+    "plate_text": "CH01AB1234",
+    "plate_confidence": 0.94,
+    "latitude": 30.7350,
+    "longitude": 76.7820,
+    "timestamp": "2026-08-31T16:15:11+05:30",
+    "road_segment_id": "seg_chandigarh_001",
+    "observation_id": null,
+    "evidence_uri": "https://[PROJECT-REF].supabase.co/storage/v1/object/sign/road-evidence/uploads/inc_001.jpg?token=...",
+    "description": "Vehicle blocking bus bay corridor",
+    "status": "open"
+  }
+}
+```
+
+### 9.5 Live Segment Update Frame (`SEGMENT_UPDATE`)
+Broadcast whenever a road segment's metrics are recalculated:
+```json
+{
+  "type": "SEGMENT_UPDATE",
+  "payload": {
+    "segment_id": "seg_chandigarh_001",
+    "condition_score": 85.5,
+    "pothole_count": 1,
+    "waterlogging_count": 0,
+    "observation_count": 15,
+    "last_updated": "2026-08-31T16:15:15+05:30"
   }
 }
 ```
 
 ---
 
-## 4. Error Response Schema
+## 10. Error Handling Contract
+
+All error responses strictly adhere to the standard schema:
 ```json
 {
   "error": {
     "code": "RESOURCE_NOT_FOUND",
     "message": "Road segment with ID 'seg_999' was not found.",
-    "timestamp": "2026-08-31T16:15:12+05:30"
+    "timestamp": "2026-09-08T00:30:00+05:30"
   }
 }
 ```
+
+| Error Code | HTTP Status | Description & Triggers |
+|---|---|---|
+| `VALIDATION_ERROR` | 422 | Request body or query parameters failed validation (e.g. `plate_text` provided without `plate_confidence`, invalid coordinates). |
+| `RESOURCE_NOT_FOUND` | 404 | Requested entity identifier does not exist. |
+| `DATABASE_CONNECTION_ERROR`| 503 | Database connection unavailable, pooler timeout, or operational query failure. Zero secrets or stack traces leaked. |
+| `BAD_REQUEST` | 400 | Malformed request syntax or unparseable headers. |
+| `INTERNAL_SERVER_ERROR` | 500 | Uncaught application exception safely formatted without diagnostics leaks. |

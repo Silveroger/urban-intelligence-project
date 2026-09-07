@@ -19,9 +19,11 @@ interface GoogleMapViewProps {
   selectedRoad: RoadSegment | null;
   selectedEvent: Event | null;
   selectedIncident: Incident | null;
+  selectedBus?: Bus | null;
   onSelectRoad: (road: RoadSegment) => void;
   onSelectEvent: (event: Event) => void;
   onSelectIncident: (incident: Incident) => void;
+  onSelectBus?: (bus: Bus) => void;
 }
 
 export function GoogleMapView({
@@ -33,9 +35,11 @@ export function GoogleMapView({
   selectedRoad,
   selectedEvent,
   selectedIncident,
+  selectedBus,
   onSelectRoad,
   onSelectEvent,
   onSelectIncident,
+  onSelectBus,
 }: GoogleMapViewProps) {
   if (!MAP_CONFIG.apiKey) {
     return (
@@ -118,22 +122,31 @@ export function GoogleMapView({
 
           {/* Bus Markers */}
           {filters.layers.buses &&
-            buses.map((bus) => (
-              <AdvancedMarker
-                key={bus.bus_id}
-                position={{ lat: bus.latitude, lng: bus.longitude }}
-                title={bus.bus_id}
-              >
-                <div
-                  className="bus-marker"
-                  style={{
-                    transform: bus.heading_deg != null ? `rotate(${bus.heading_deg}deg)` : undefined,
-                  }}
+            buses.map((bus) => {
+              const isSelected = selectedBus?.bus_id === bus.bus_id;
+              const titleText = `${bus.vehicle_number || bus.bus_id} (${bus.speed_kmh != null ? `${Math.round(bus.speed_kmh)} km/h` : 'Active'})`;
+              return (
+                <AdvancedMarker
+                  key={bus.bus_id}
+                  position={{ lat: bus.latitude, lng: bus.longitude }}
+                  title={titleText}
+                  onClick={() => onSelectBus?.(bus)}
                 >
-                  🚌
-                </div>
-              </AdvancedMarker>
-            ))}
+                  <div
+                    className={`bus-marker${isSelected ? ' selected' : ''}`}
+                    style={{
+                      transform: bus.heading_deg != null ? `rotate(${bus.heading_deg}deg)` : undefined,
+                      cursor: 'pointer',
+                      boxShadow: isSelected ? '0 0 0 4px #38bdf8, 0 0 16px rgba(56, 189, 248, 0.8)' : undefined,
+                      borderRadius: '50%',
+                      transition: 'transform 0.3s ease, box-shadow 0.2s ease',
+                    }}
+                  >
+                    🚌
+                  </div>
+                </AdvancedMarker>
+              );
+            })}
 
           {/* deck.gl Heatmap Overlay */}
           <DeckHeatmapOverlay events={events} visible={filters.layers.heatmap} />
