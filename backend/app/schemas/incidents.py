@@ -22,10 +22,13 @@ class IncidentResponse(BaseModel):
 
 
 class IncidentCreate(BaseModel):
+    incident_id: Optional[str] = None
     incident_type: str
     severity: Optional[Union[int, str]] = 1
     latitude: float
     longitude: float
+    timestamp: Optional[str] = None
+    bus_id: Optional[str] = None
     road_segment_id: Optional[str] = None
     observation_id: Optional[str] = None
     description: Optional[str] = None

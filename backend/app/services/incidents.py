@@ -22,6 +22,12 @@ async def create_incident(
     Preserves foreign-key relationships to road_segments and observations.
     """
     now_utc = datetime.now(timezone.utc)
+    recorded_at = now_utc
+    if incident_in.timestamp:
+        try:
+            recorded_at = datetime.fromisoformat(ensure_iso_timestamp(incident_in.timestamp))
+        except Exception:
+            recorded_at = now_utc
 
     # 1. Map matching if road_segment_id is not provided
     segment_id_str = incident_in.road_segment_id
@@ -35,7 +41,7 @@ async def create_incident(
     sev_label = severity_to_text(sev_num)
 
     # 3. Create Incident model with documented columns
-    inc_id = f"inc_{uuid.uuid4().hex[:12]}"
+    inc_id = incident_in.incident_id or f"inc_{uuid.uuid4().hex[:12]}"
     point_geom = WKTElement(f"SRID=4326;POINT({incident_in.longitude} {incident_in.latitude})")
 
     incident = Incident(
@@ -51,7 +57,7 @@ async def create_incident(
         plate_text=incident_in.plate_text,
         plate_confidence=incident_in.plate_confidence,
         evidence_uri=incident_in.evidence_uri,
-        recorded_at=now_utc,
+        recorded_at=recorded_at,
     )
     db.add(incident)
     await db.commit()

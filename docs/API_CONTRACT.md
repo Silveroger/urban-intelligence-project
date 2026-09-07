@@ -132,6 +132,7 @@
 - **Endpoint:** `POST /api/v1/observations`
 - **Description:** Ingests AI edge perception observation. Confirms or quarantines event based on confidence threshold ($0.50$), triggers PostGIS map-matching, updates segment condition score, and broadcasts live event.
 - **Request Body:** Conforms to [`docs/AI_CONTRACT.md`](AI_CONTRACT.md).
+- **Extended Fields:** Accepts optional AI hazard diagnostics: `risk_score` (0-100), `risk_level` (`low`/`moderate`/`high`/`critical`), `breadth_cm`, `depth_cm`, `dimensions` (object with estimated area and bounding metrics), `risk_assessment` (civil engineering severity analysis), and `metadata` (JSONB dictionary).
 - **Response Schema:**
 ```json
 {
@@ -210,6 +211,35 @@
     "poor": 0,
     "critical": 0
   }
+}
+```
+
+### 2.8 Edge Video Processing Pipeline
+- **Endpoint:** `GET /api/v1/ingest/video/status` (alias `/api/v1/video/status`)
+  - **Description:** Returns current execution status, progress percentage, current/total frames, and last result of the edge video perception pipeline.
+  - **Response Schema:**
+```json
+{
+  "is_running": false,
+  "progress": 100.0,
+  "current_frame": 180,
+  "total_frames": 180,
+  "status_message": "Processing completed successfully!",
+  "last_result": null
+}
+```
+- **Endpoint:** `POST /api/v1/ingest/video/process` (alias `/api/v1/video/process`)
+  - **Description:** Initiates asynchronous Edge AI perception scanning on an uploaded video or synthetic sample. Detections and telemetry are normalized via `BackendIngestAdapter` and ingested directly into canonical PostGIS tables.
+  - **Form Fields:** `bus_id` (string), `use_sample` (boolean), `show_window` (boolean), `enabled_detectors` (JSON string map of detector categories), `video_file` (optional multipart file), `gps_file` (optional multipart file).
+  - **Response Schema:**
+```json
+{
+  "status": "processing_started",
+  "bus_id": "BUS-101",
+  "video_path": "ai/sample_bus_camera.mp4",
+  "gps_path": "ai/sample_gps_track.json",
+  "show_window": false,
+  "enabled_detectors": {}
 }
 ```
 

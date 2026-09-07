@@ -77,6 +77,21 @@ async def ingest_observation(
         "latitude": obs_in.latitude,
         "longitude": obs_in.longitude,
     }
+    if obs_in.metadata:
+        metadata_dict.update(obs_in.metadata)
+
+    if obs_in.risk_score is not None:
+        metadata_dict["risk_score"] = obs_in.risk_score
+    if obs_in.risk_level is not None:
+        metadata_dict["risk_level"] = obs_in.risk_level
+    if obs_in.breadth_cm is not None:
+        metadata_dict["breadth_cm"] = obs_in.breadth_cm
+    if obs_in.depth_cm is not None:
+        metadata_dict["depth_cm"] = obs_in.depth_cm
+    if obs_in.dimensions is not None:
+        metadata_dict["dimensions"] = obs_in.dimensions
+    if obs_in.risk_assessment is not None:
+        metadata_dict["risk_assessment"] = obs_in.risk_assessment
 
     observation = Observation(
         observation_id=obs_id,
@@ -132,6 +147,13 @@ async def ingest_observation(
         severity_label=sev_label,
         frame_id=obs_in.frame_id,
         evidence_uri=obs_in.evidence_uri,
+        risk_score=metadata_dict.get("risk_score"),
+        risk_level=metadata_dict.get("risk_level"),
+        breadth_cm=metadata_dict.get("breadth_cm"),
+        depth_cm=metadata_dict.get("depth_cm"),
+        dimensions=metadata_dict.get("dimensions"),
+        risk_assessment=metadata_dict.get("risk_assessment"),
+        metadata=metadata_dict,
     )
 
     frame = LiveEventFrame(payload=event_response)

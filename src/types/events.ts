@@ -9,6 +9,18 @@ export interface Event {
   class_name?: string;
   confidence: number;
   severity?: number;
+  severity_label?: string;
   frame_id?: number;
   evidence_uri?: string;
+  risk_score?: number;
+  risk_level?: string;
+  breadth_cm?: number;
+  depth_cm?: number;
+  dimensions?: {
+    breadth_cm?: number;
+    depth_cm?: number;
+    [key: string]: any;
+  };
+  risk_assessment?: string;
+  metadata?: Record<string, any>;
 }

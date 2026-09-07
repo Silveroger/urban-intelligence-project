@@ -3,44 +3,32 @@
 > **Note:** This document tracks temporary, current development state. Stale entries are pruned upon milestone completion.
 
 ## 1. Current Implementation Baseline
-- **Branch:** `backend-recovery` (fully validated, targeted for canonical promotion to `origin/Backend`).
-- **Backend Status:** Recovered, hardened, and verified with **100% test pass rate (40/40 tests passing)**.
+- **Branch:** `backend-ml-integration` (integrates Chirag's AI + hardware pipeline with Eshan's canonical Backend).
+- **Backend Status:** Canonical PostGIS architecture preserved with **100% test pass rate (47/47 tests passing)**.
+- **AI & Edge Perception Subsystem:**
+  - Preserved Chirag's detector algorithms (`road_defect_detector.py`, `infrastructure_detector.py`, `traffic_density_detector.py`, `pedestrian_detector.py`, `plate_recognizer.py`), tracker (`vehicle_tracker.py`), GPS sync (`gps_sync.py`), optimizer (`edge_optimizer.py`), and test video generator (`test_video_generator.py`).
+  - Implemented thin boundary adapter: `ai/adapter/backend_adapter.py` (`BackendIngestAdapter`) normalizing telemetry, defect observations, and incident alerts.
+  - Normalizes edge taxonomy: maps `event_type="pedestrian"` to canonical `event_type="incident"` with `class_name="vulnerable_pedestrian"`.
+  - Normalizes coordinates (`lat`/`lng` to `latitude`/`longitude`) and validates plate OCR confidence.
+  - Passes diagnostic metrics (`risk_score`, `risk_level`, `breadth_cm`, `depth_cm`, `dimensions`, `risk_assessment`) into `Observation.metadata_json` (PostgreSQL `observations.metadata` JSONB column).
+  - Wired `ai/pipeline.py` and `ai/hardware_receiver.py` to stream normalized outputs to canonical backend REST APIs (`/api/v1/observations`, `/api/v1/telemetry`, `/api/v1/incidents`).
+  - Added video processing trigger router: `/api/v1/ingest/video/status` and `/api/v1/ingest/video/process`.
+- **Frontend Integration:**
+  - Added "Edge AI Video Hub" modal button and `VideoProcessingHub` component to `src/pages/Dashboard.tsx` while strictly preserving Eshan's canonical WebSocket listener (`connectLiveStream`).
+  - Added Civil Hazard Diagnostic panel, defect dimensions, and keyframe evidence crop to `src/components/Details/Inspector.tsx` while preserving bus inspection and incident score cards.
+  - Verified clean TypeScript build via `npm run build`.
 - **Live Database & Infrastructure:**
   - PostgreSQL 17.6 + PostGIS 3.3.7 verified in schema `gis` on Supabase.
-  - Connectivity routed through Supabase Regional IPv4 Session Pooler (port 5432), resolving Windows IPv6 DNS errors (`[Errno 11001]`).
-  - Strict `search_path: public, gis` configured in engine `connect_args`.
-  - Elimination of SQLite fallback; database exceptions mapped to HTTP 503 `DATABASE_CONNECTION_ERROR`.
-- **Authoritative Database Schema (9 Canonical Entities Reconciled):**
-  - All 9 entities verified in PostgreSQL: `buses`, `routes`, `trips`, `road_segments`, `gps_points`, `gps_records` (compatibility view), `observations` (with `status`), `incidents`, `segment_history`.
-  - **GPS Pipeline:** `gps_points` is the physical source-of-truth table; `gps_records` is a zero-overhead compatibility view.
-  - Superseded legacy NOT NULL constraints successfully dropped via `scripts/drop_legacy_notnull.py` with zero data loss.
-- **Canonical Road Geometry Pipeline (OSM-Derived):**
-  - Canonical Chandigarh arterial road network centerlines derived from OpenStreetMap (OSM) versioned in `backend/data/chandigarh_roads_canonical.geojson`.
-  - PostGIS `public.road_segments.geom` updated with 13 to 38 vertices per segment in WGS84 EPSG:4326.
-  - Bus routes, GPS traces, defect observations, and traffic incidents snapped to canonical centerlines with $0.00\,\text{m}$ offset.
-  - Eliminates coarse synthetic straight lines; road polylines follow genuine physical street curvature on Google Maps basemap.
-- **Scoring & Ingestion Engine:**
-  - Confidence-weighted defect penalties (`weight_by_confidence=True`).
-  - Clean-pass recovery (+5.0 condition points per verified clean pass, up to 100.0 max).
-  - 10-second history snapshot debouncing in `aggregation.py` (resolves BUG-006).
-  - Strict OCR rule validation (missing `plate_confidence` returns HTTP 422).
-  - Low-confidence quarantine (< 0.50 marked `status = 'quarantined'`, HTTP 201, skips scoring/broadcast).
-  - Dynamic 1-hour signed URL generation for evidence assets in Supabase Storage (`road-evidence`).
-- **Real-Time Streaming (`/ws/live`):**
-  - Active broadcast triggers for `BUS_TELEMETRY`, `NEW_EVENT`, `NEW_INCIDENT` (resolves BUG-016), and `SEGMENT_UPDATE` (resolves BUG-017).
-  - Heartbeat ping/pong and dead-connection cleanup verified.
-  - Frontend auto-reconnect backoff (1s-30s) and 30s ping heartbeats in `src/services/websocket.ts`.
+  - Single source of truth: all map-matching, road condition scoring recalculation, and WebSocket delta broadcasting occur canonically in PostGIS. No duplicate in-memory backend.
 - **Testing & Verification:**
-  - `pytest -v`: 40/40 tests passing (100% pass rate), including live PostgreSQL/PostGIS integration tests in `tests/test_integration_real.py` and analytics summary test in `tests/test_api_routes.py`.
+  - `pytest`: 47/47 tests passing (100% pass rate), including all 40 canonical backend tests + 7 new AI integration tests (`tests/test_ai_integration.py`).
   - `npm run build`: Clean compilation with zero TypeScript errors.
-  - Live Endpoints Verified: `/health`, `/health/database`, `/api/v1/segments/geojson` (11 features), `/api/v1/events` (20), `/api/v1/incidents` (7), `/api/v1/buses` (11), `/api/v1/analytics/summary` (72.8 avg condition score).
-- **Frontend Dashboard (`src/`):** Full live integration operational (`VITE_USE_MOCK=false`). Consumes REST hydration endpoints and live WebSocket stream, updating moving bus markers, defect/incident markers, and segment health colors dynamically.
 
 ---
 
 ## 2. Active Milestones & Focus
-- **Current Milestone:** Finalize Documentation & Promote `backend-recovery` to Canonical `origin/Backend`.
-- **Status:** All implementation and verification phases completed. Documentation synchronized across 16 authoritative specifications.
+- **Current Milestone:** AI Subsystem Integration & Compatibility Verification.
+- **Status:** Complete. Edge perception models, hardware receiver, and test media from `origin/ml` successfully integrated with canonical Backend and PostGIS database via thin adapter boundary.
 
 ---
 

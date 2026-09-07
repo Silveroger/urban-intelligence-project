@@ -16,3 +16,10 @@ class EventResponse(BaseModel):
     severity_label: Optional[str] = Field(default=None, description="Descriptive severity label for display only: low, moderate, high, critical")
     frame_id: Optional[int] = None
     evidence_uri: Optional[str] = None
+    risk_score: Optional[float] = None
+    risk_level: Optional[str] = None
+    breadth_cm: Optional[float] = None
+    depth_cm: Optional[float] = None
+    dimensions: Optional[dict] = None
+    risk_assessment: Optional[str] = None
+    metadata: Optional[dict] = None

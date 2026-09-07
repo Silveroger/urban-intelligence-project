@@ -58,9 +58,21 @@ The SIH 26124 platform is a distributed geospatial intelligence system that conv
 - **Responsibilities:** Continuous video sampling, GPS coordinate capture, local frame filtering, metadata packaging, and edge event triggering.
 - **Outputs:** Event observation payloads with synchronized timestamps and spatial coordinates.
 
-### 2.2 AI / Perception Subsystem
-- **Responsibilities:** Object detection and segmentation for potholes, surface cracks, waterlogging; vehicle detection and tracking; OCR on license plates.
-- **Constraints:** Outputs structured JSON payloads conforming to [`docs/AI_CONTRACT.md`](AI_CONTRACT.md). Does not execute directly within the frontend.
+### 2.2 AI / Perception Subsystem (`ai/`)
+- **Responsibilities:** Onboard edge computer vision executing on dashcam video and camera sensors:
+  - Road defect detection (`road_defect_detector.py`): Potholes, cracks, surface defects, and waterlogging.
+  - Infrastructure verification (`infrastructure_detector.py`): Zebra crossings, road dividers, traffic signboards.
+  - Traffic analytics (`traffic_density_detector.py`): Multi-class vehicle classification, counting, and density index.
+  - Pedestrian safety (`pedestrian_detector.py`): Vulnerable pedestrian and school children tracking.
+  - License plate recognition (`plate_recognizer.py`): OCR localization with confidence scoring.
+  - Vehicle tracking (`vehicle_tracker.py`): SORT/ByteTrack multi-object tracking and erratic driving detection.
+  - Edge optimization (`edge_optimizer.py`): 95% bandwidth reduction transmitting structured JSON + cropped keyframe evidence.
+- **Output Adapter Boundary (`ai/adapter/backend_adapter.py`):**
+  - Acts as the single translation layer between edge perception dictionaries and canonical Backend REST APIs.
+  - Normalizes edge taxonomy: maps non-canonical `event_type="pedestrian"` to canonical `event_type="incident"` with `class_name="vulnerable_pedestrian"`.
+  - Normalizes coordinates (`lat`/`lng` to `latitude`/`longitude`) and validates plate OCR confidence rules.
+  - Packs AI diagnostic metrics (`risk_score`, `risk_level`, `breadth_cm`, `depth_cm`, `dimensions`, `risk_assessment`) into `metadata_json` (PostgreSQL `observations.metadata` column).
+  - All outputs stream directly to Eshan's canonical Backend endpoints (`/api/v1/observations`, `/api/v1/telemetry`, `/api/v1/incidents`). No separate in-memory backend exists.
 
 ### 2.3 Backend & Geospatial Subsystem (`backend/`)
 - **Responsibilities:** Ingestion validation, spatial road-network map matching, multi-pass observation aggregation, dynamic condition scoring ($0-100$), confidence estimation, clean-pass recovery, historical state maintenance, and API delivery.

@@ -21,6 +21,13 @@ class ObservationCreate(BaseModel):
     plate_text: Optional[str] = None
     plate_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     evidence_uri: Optional[str] = None
+    metadata: Optional[dict] = None
+    risk_score: Optional[float] = None
+    risk_level: Optional[str] = None
+    breadth_cm: Optional[float] = None
+    depth_cm: Optional[float] = None
+    dimensions: Optional[dict] = None
+    risk_assessment: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_rules(self) -> "ObservationCreate":

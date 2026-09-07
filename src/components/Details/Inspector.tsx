@@ -5,6 +5,9 @@ import type { Bus } from '../../types/buses';
 import { getRoadColor, getRoadStatusLabel } from '../../utils/roadColor';
 import { formatTimestamp, formatConfidence, getEventTypeLabel } from '../../utils/formatters';
 import { ConditionHistory } from '../Analytics/ConditionHistory';
+import { AlertTriangle, Camera, Image as ImageIcon } from 'lucide-react';
+
+const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 function getHeadingDescription(deg?: number): string {
   if (deg == null) return 'N/A';
@@ -115,6 +118,53 @@ export function Inspector({
         {/* ─── Event ─── */}
         {selectedEvent && (
           <div className="inspector-section">
+            {selectedEvent.risk_score !== undefined && (
+              <div className="inspector-score-card">
+                <div className="score-label">Defect Risk Index</div>
+                <div
+                  className="score-value"
+                  style={{
+                    color:
+                      selectedEvent.risk_score >= 80
+                        ? '#ef4444'
+                        : selectedEvent.risk_score >= 50
+                          ? '#f97316'
+                          : '#eab308',
+                  }}
+                >
+                  {Math.round(selectedEvent.risk_score)}
+                  <span className="score-max">/100</span>
+                </div>
+                {selectedEvent.risk_level && (
+                  <div
+                    className="score-status-pill"
+                    style={{
+                      backgroundColor:
+                        selectedEvent.risk_score >= 80
+                          ? 'rgba(239, 68, 68, 0.15)'
+                          : selectedEvent.risk_score >= 50
+                            ? 'rgba(249, 115, 22, 0.15)'
+                            : 'rgba(234, 179, 8, 0.15)',
+                      borderColor:
+                        selectedEvent.risk_score >= 80
+                          ? '#ef4444'
+                          : selectedEvent.risk_score >= 50
+                            ? '#f97316'
+                            : '#eab308',
+                      color:
+                        selectedEvent.risk_score >= 80
+                          ? '#ef4444'
+                          : selectedEvent.risk_score >= 50
+                            ? '#f97316'
+                            : '#eab308',
+                    }}
+                  >
+                    {selectedEvent.risk_level.toUpperCase()}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="inspector-grid">
               <Field label="Event ID" value={selectedEvent.event_id} mono />
               <Field label="Event Type" value={getEventTypeLabel(selectedEvent.event_type)} />
@@ -123,6 +173,18 @@ export function Inspector({
                 value={selectedEvent.severity !== undefined ? `Level ${selectedEvent.severity}` : 'N/A'}
               />
               <Field label="Confidence" value={formatConfidence(selectedEvent.confidence)} />
+              {(selectedEvent.breadth_cm != null || selectedEvent.dimensions?.breadth_cm != null) && (
+                <Field
+                  label="Est. Breadth"
+                  value={`${selectedEvent.breadth_cm ?? selectedEvent.dimensions?.breadth_cm} cm`}
+                />
+              )}
+              {(selectedEvent.depth_cm != null || selectedEvent.dimensions?.depth_cm != null) && (
+                <Field
+                  label="Est. Depth"
+                  value={`${selectedEvent.depth_cm ?? selectedEvent.dimensions?.depth_cm} cm`}
+                />
+              )}
               <Field label="Vehicle / Bus ID" value={selectedEvent.bus_id} mono />
               <Field label="Matched Segment" value={selectedEvent.road_segment_id} mono />
               <Field
@@ -132,6 +194,35 @@ export function Inspector({
               />
               <Field label="Detected At" value={formatTimestamp(selectedEvent.timestamp)} />
             </div>
+
+            {selectedEvent.risk_assessment && (
+              <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(15, 23, 42, 0.85)', borderRadius: '10px', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24', fontSize: '11px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase' }}>
+                  <AlertTriangle style={{ width: 14, height: 14 }} />
+                  <span>Civil Hazard Diagnostic</span>
+                </div>
+                <p style={{ color: '#cbd5e1', fontSize: '12px', lineHeight: '1.4' }}>
+                  {selectedEvent.risk_assessment}
+                </p>
+              </div>
+            )}
+
+            {selectedEvent.evidence_uri && (
+              <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(15, 23, 42, 0.85)', borderRadius: '10px', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#818cf8', fontSize: '11px', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>
+                  <Camera style={{ width: 14, height: 14 }} />
+                  <span>Keyframe Evidence Crop</span>
+                </div>
+                <img
+                  src={selectedEvent.evidence_uri.startsWith('http') ? selectedEvent.evidence_uri : `${baseUrl}${selectedEvent.evidence_uri}`}
+                  alt="Defect Evidence Crop"
+                  style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #334155' }}
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -202,6 +293,23 @@ export function Inspector({
                 <p className="plate-caveat">
                   ⚠ Plate text is OCR-derived and may not be fully accurate. Confidence shown above.
                 </p>
+              )}
+
+              {selectedIncident.evidence_uri && (
+                <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(15, 23, 42, 0.85)', borderRadius: '10px', border: '1px solid #334155' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f43f5e', fontSize: '11px', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>
+                    <ImageIcon style={{ width: 14, height: 14 }} />
+                    <span>Incident Evidence Crop</span>
+                  </div>
+                  <img
+                    src={selectedIncident.evidence_uri.startsWith('http') ? selectedIncident.evidence_uri : `${baseUrl}${selectedIncident.evidence_uri}`}
+                    alt="Incident Evidence Crop"
+                    style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #334155' }}
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
               )}
             </div>
           );

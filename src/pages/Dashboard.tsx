@@ -13,6 +13,8 @@ import type { RoadSegment } from '../types/roadSegments';
 import type { Event } from '../types/events';
 import type { Incident } from '../types/incidents';
 import type { Bus } from '../types/buses';
+import { Video } from 'lucide-react';
+import { VideoProcessingHub } from '../components/VideoHub/VideoProcessingHub';
 
 export function Dashboard() {
   // ─── Backend data state ───
@@ -35,6 +37,7 @@ export function Dashboard() {
 
   // ─── UI state ───
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [videoHubOpen, setVideoHubOpen] = useState(false);
 
   // Load initial data via API provider
   useEffect(() => {
@@ -232,6 +235,28 @@ export function Dashboard() {
           )}
           <button
             type="button"
+            onClick={() => setVideoHubOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#4f46e5',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginRight: '8px',
+              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.35)',
+            }}
+          >
+            <Video style={{ width: 14, height: 14 }} />
+            <span>Edge AI Video Hub</span>
+          </button>
+          <button
+            type="button"
             className="sidebar-toggle-btn"
             onClick={() => setSidebarOpen((v) => !v)}
             aria-label="Toggle filters"
@@ -290,6 +315,25 @@ export function Dashboard() {
           />
         </aside>
       </main>
+
+      {/* Edge Video Ingestion Modal */}
+      <VideoProcessingHub
+        isOpen={videoHubOpen}
+        onClose={() => setVideoHubOpen(false)}
+        filters={filters}
+        onNewEvent={(newEvent) => {
+          setEvents((prev) => {
+            if (prev.some((e) => e.event_id === newEvent.event_id)) return prev;
+            return [newEvent, ...prev];
+          });
+        }}
+        onNewIncident={(newIncident) => {
+          setIncidents((prev) => {
+            if (prev.some((i) => i.incident_id === newIncident.incident_id)) return prev;
+            return [newIncident, ...prev];
+          });
+        }}
+      />
     </div>
   );
 }

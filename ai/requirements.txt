@@ -1,0 +1,10 @@
+# Edge AI & Vision Pipeline Requirements
+numpy>=1.26.0
+opencv-python>=4.9.0
+ultralytics>=8.1.0
+av>=11.0.0
+pytesseract>=0.3.10
+shapely>=2.0.0
+requests>=2.31.0
+pydantic>=2.6.0
+python-dotenv>=1.0.1

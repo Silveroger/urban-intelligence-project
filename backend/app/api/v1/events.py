@@ -89,6 +89,13 @@ async def get_events(
                 severity_label=sev_label,
                 frame_id=frame_id,
                 evidence_uri=evidence_url,
+                risk_score=metadata.get("risk_score"),
+                risk_level=metadata.get("risk_level"),
+                breadth_cm=metadata.get("breadth_cm"),
+                depth_cm=metadata.get("depth_cm"),
+                dimensions=metadata.get("dimensions"),
+                risk_assessment=metadata.get("risk_assessment"),
+                metadata=metadata,
             )
         )
 
