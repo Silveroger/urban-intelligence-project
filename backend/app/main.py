@@ -1,5 +1,17 @@
+import sys
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Bootstrap sys.path so 'app' and 'ai' modules are always accessible
+_backend_dir = Path(__file__).resolve().parent.parent
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
+_repo_root = _backend_dir.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
